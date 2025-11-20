@@ -1,7 +1,0 @@
-* [33m4487fd8[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m)[m Bỏ qua file cấu hình không cần thiết
-[31m|[m * [33mdae66d4[m[33m ([m[1;31morigin/master[m[33m, [m[1;31morigin/HEAD[m[33m)[m Cập nhật các file và thêm mới các model và adapter
-[31m|[m[31m/[m  
-* [33md1c3ea8[m Cập nhật slider và banner, thay đổi layout
-* [33m793a3cb[m Thêm layout mới và cập nhật một số file
-* [33mbc12fa6[m Thêm BaseActivity và cập nhật các file cấu hình dự án
-* [33mfe35aae[m Initial commit
