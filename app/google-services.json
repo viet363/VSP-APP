@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "83496255767",
+    "firebase_url": "https://appgiadung-702d4-default-rtdb.firebaseio.com",
+    "project_id": "appgiadung-702d4",
+    "storage_bucket": "appgiadung-702d4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:83496255767:android:c3a68107cd13410302b752",
+        "android_client_info": {
+          "package_name": "com.example.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA2R53k0whIZDtiGfBrv2MpOzsjNt2VY4Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
