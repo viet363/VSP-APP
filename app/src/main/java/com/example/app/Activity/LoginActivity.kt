@@ -1,93 +1,168 @@
 package com.example.app.Activity
 
-import android.annotation.SuppressLint
-import android.app.AlertDialog
 import android.content.Intent
 import android.os.Bundle
-import android.widget.Button
-import android.widget.EditText
-import android.widget.ImageButton
 import android.widget.Toast
-import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import com.example.app.R
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.FirebaseUser
+import com.example.app.Helper.TinyDB
+import com.example.app.Network.AuthApi
+import com.example.app.Network.RetrofitClient
+import com.example.app.Model.UserModel
+import com.example.app.databinding.ActivityLoginBinding
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInClient
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
+import org.json.JSONObject
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
 
 class LoginActivity : AppCompatActivity() {
-    private lateinit var mAuth: FirebaseAuth
-    private lateinit var edtlogin: EditText
-    private lateinit var edtpass: EditText
-    private lateinit var btnlogin: Button
-    private lateinit var btnChange: ImageButton
 
-    @SuppressLint("MissingInflatedId")
+    private lateinit var binding: ActivityLoginBinding
+    private lateinit var tinyDB: TinyDB
+    private lateinit var googleSignInClient: GoogleSignInClient
+    private val api = RetrofitClient.instance.create(AuthApi::class.java)
+
+    private val googleSignInLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+            try {
+                val account = task.getResult(ApiException::class.java)
+                account?.let {
+                    handleGoogleSignIn(it.idToken!!)
+                }
+            } catch (e: ApiException) {
+                Toast.makeText(this, "Google sign in failed: ${e.statusCode}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContentView(R.layout.activity_login)
+        binding = ActivityLoginBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        tinyDB = TinyDB(this)
 
-        edtlogin = findViewById(R.id.edtemail_login)
-        edtpass = findViewById(R.id.edtpassword_login)
-        btnlogin = findViewById(R.id.btn_Login)
-        btnChange = findViewById(R.id.btn_Change_signUp)
-        mAuth = FirebaseAuth.getInstance()
+        // Configure Google Sign In
+        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestIdToken("538712076460-abe9pms62q8qfobboq7eg9u75solisna.apps.googleusercontent.com")
+            .requestEmail()
+            .build()
 
-        btnlogin.setOnClickListener {
-            val login = edtlogin.text.toString().trim()
-            val pass = edtpass.text.toString().trim()
+        googleSignInClient = GoogleSignIn.getClient(this, gso)
 
-            if (login.isEmpty() || pass.isEmpty()) {
-                Toast.makeText(this, "Vui lòng nhập email và mật khẩu", Toast.LENGTH_SHORT).show()
+        binding.btnLogin.setOnClickListener {
+            val usernameOrEmail = binding.edtemailLogin.text.toString().trim()
+            val pass = binding.edtpasswordLogin.text.toString().trim()
+
+            if (usernameOrEmail.isEmpty() || pass.isEmpty()) {
+                Toast.makeText(this, "Vui lòng nhập username/email và mật khẩu", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
-            if (!android.util.Patterns.EMAIL_ADDRESS.matcher(login).matches()) {
-                Toast.makeText(this, "Email không hợp lệ", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            mAuth.signInWithEmailAndPassword(login, pass)
-                .addOnCompleteListener { task ->
-                    if (task.isSuccessful) {
-                        val user: FirebaseUser? = mAuth.currentUser
-                        if (user != null && user.isEmailVerified) {
-                            Toast.makeText(this, "Đăng nhập thành công!", Toast.LENGTH_SHORT).show()
-                            startActivity(Intent(this, MainActivity::class.java))
-                            finish()
-                        } else {
-                            showVerificationDialog(user)
-                            mAuth.signOut()
-                        }
-                    } else {
-                        Toast.makeText(this, "Sai email hoặc mật khẩu", Toast.LENGTH_SHORT).show()
-                    }
-                }
+            loginWithUsernameOrEmail(usernameOrEmail, pass)
         }
 
-        btnChange.setOnClickListener {
+        binding.btnGoogleLogin.setOnClickListener {
+            signInWithGoogle()
+        }
+
+        binding.btnChangeSignUp.setOnClickListener {
             startActivity(Intent(this, SignUpActivity::class.java))
             finish()
         }
     }
 
-    private fun showVerificationDialog(user: FirebaseUser?) {
-        val dialog = AlertDialog.Builder(this)
-            .setTitle("Email chưa xác thực")
-            .setMessage("Tài khoản của bạn chưa được xác thực. Bạn có muốn gửi lại email xác thực không?")
-            .setPositiveButton("Gửi email") { _, _ ->
-                user?.sendEmailVerification()
-                    ?.addOnCompleteListener { task ->
-                        if (task.isSuccessful) {
-                            Toast.makeText(this, "Đã gửi lại email xác thực. Vui lòng kiểm tra hộp thư.", Toast.LENGTH_LONG).show()
-                        } else {
-                            Toast.makeText(this, "Gửi email xác thực thất bại.", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-            }
-            .setNegativeButton("Hủy", null)
-            .create()
+    private fun loginWithUsernameOrEmail(usernameOrEmail: String, password: String) {
+        val isEmail = usernameOrEmail.contains("@")
 
-        dialog.show()
+        val body = hashMapOf(
+            "username" to if (!isEmail) usernameOrEmail else "",
+            "email" to if (isEmail) usernameOrEmail else "",
+            "password" to password
+        )
+
+        api.login(body).enqueue(object : Callback<UserModel> {
+            override fun onResponse(call: Call<UserModel>, response: Response<UserModel>) {
+                if (response.isSuccessful && response.body() != null) {
+                    val user = response.body()!!
+                    saveUserData(user)
+                    Toast.makeText(this@LoginActivity, "Đăng nhập thành công!", Toast.LENGTH_SHORT).show()
+                    startActivity(Intent(this@LoginActivity, MainActivity::class.java))
+                    finish()
+                } else {
+                    val errorMessage = try {
+                        val errorBody = response.errorBody()?.string()
+                        if (errorBody != null) {
+                            val jsonObject = JSONObject(errorBody)
+                            jsonObject.getString("message")
+                        } else {
+                            "Sai thông tin đăng nhập"
+                        }
+                    } catch (e: Exception) {
+                        "Sai thông tin đăng nhập"
+                    }
+                    Toast.makeText(this@LoginActivity, errorMessage, Toast.LENGTH_SHORT).show()
+                }
+            }
+
+            override fun onFailure(call: Call<UserModel>, t: Throwable) {
+                Toast.makeText(this@LoginActivity, "Lỗi kết nối server: ${t.message}", Toast.LENGTH_SHORT).show()
+            }
+        })
+    }
+
+    private fun signInWithGoogle() {
+        val signInIntent = googleSignInClient.signInIntent
+        googleSignInLauncher.launch(signInIntent)
+    }
+
+    private fun handleGoogleSignIn(idToken: String) {
+        val body = hashMapOf(
+            "idToken" to idToken
+        )
+
+        api.loginWithGoogle(body).enqueue(object : Callback<UserModel> {
+            override fun onResponse(call: Call<UserModel>, response: Response<UserModel>) {
+                if (response.isSuccessful && response.body() != null) {
+                    val user = response.body()!!
+                    saveUserData(user)
+                    Toast.makeText(this@LoginActivity, "Đăng nhập Google thành công!", Toast.LENGTH_SHORT).show()
+                    startActivity(Intent(this@LoginActivity, MainActivity::class.java))
+                    finish()
+                } else {
+                    val errorMessage = try {
+                        val errorBody = response.errorBody()?.string()
+                        if (errorBody != null) {
+                            val jsonObject = JSONObject(errorBody)
+                            jsonObject.getString("message")
+                        } else {
+                            "Đăng nhập Google thất bại"
+                        }
+                    } catch (e: Exception) {
+                        "Đăng nhập Google thất bại"
+                    }
+                    Toast.makeText(this@LoginActivity, errorMessage, Toast.LENGTH_SHORT).show()
+                }
+            }
+
+            override fun onFailure(call: Call<UserModel>, t: Throwable) {
+                Toast.makeText(this@LoginActivity, "Lỗi kết nối server: ${t.message}", Toast.LENGTH_SHORT).show()
+            }
+        })
+    }
+
+    private fun saveUserData(user: UserModel) {
+        tinyDB.putString("token", user.token ?: "")
+        tinyDB.putLong("userId", user.id)
+        tinyDB.putString("username", user.username)
+        tinyDB.putString("email", user.email ?: "")
+        tinyDB.putString("fullname", user.fullname ?: "")
+        tinyDB.putString("avatar", user.avatar ?: "")
     }
 }

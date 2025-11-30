@@ -5,7 +5,6 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import com.example.app.Model.CategoryModel
-import com.example.app.Model.ItemsModel
 import com.example.app.Model.SliderModel
 import com.google.firebase.database.*
 

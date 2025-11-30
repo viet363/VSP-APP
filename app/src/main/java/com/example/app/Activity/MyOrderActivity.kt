@@ -4,131 +4,121 @@ import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.app.Adapter.OrderAdapter
 import com.example.app.Helper.TinyDB
 import com.example.app.Model.OrderModel
-import com.example.app.Model.UserModel
+import com.example.app.Network.OrdersApi
+import com.example.app.Network.RetrofitClient
 import com.example.app.databinding.ActivityMyOrderBinding
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.database.ValueEventListener
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
 
-class MyOrderActivity : BaseActivity() {
+class MyOrderActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMyOrderBinding
     private lateinit var tinyDB: TinyDB
     private val orders = mutableListOf<OrderModel>()
+    private val api = RetrofitClient.instance.create(OrdersApi::class.java)
+    private val TAG = "MyOrderActivity"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Log.d("MyOrderActivity", "onCreate started")
         binding = ActivityMyOrderBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        Log.d("MyOrderActivity", "Binding initialized: ${binding.backBtn != null}")
 
         tinyDB = TinyDB(this)
 
-        // Kiểm tra trạng thái nút Back
-        binding.backBtn.post {
-            Log.d("MyOrderActivity", "Back button state: isShown=${binding.backBtn.isShown}, isEnabled=${binding.backBtn.isEnabled}, isClickable=${binding.backBtn.isClickable}")
-        }
-
-        // Xử lý nút Back
         binding.backBtn.setOnClickListener {
-            Log.d("MyOrderActivity", "Back button clicked")
-            Toast.makeText(this, "Quay lại màn hình chính", Toast.LENGTH_SHORT).show()
             try {
                 val intent = Intent(this, MainActivity::class.java)
                 intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
                 startActivity(intent)
                 finish()
-                Log.d("MyOrderActivity", "Navigated to MainActivity")
             } catch (e: Exception) {
-                Log.e("MyOrderActivity", "Error starting MainActivity: ${e.message}")
+                Log.e(TAG, "Error starting MainActivity: ${e.message}")
                 Toast.makeText(this, "Lỗi mở MainActivity: ${e.message}", Toast.LENGTH_LONG).show()
             }
         }
 
-        // Thêm sự kiện touch để debug
-        binding.backBtn.setOnTouchListener { _, event ->
-            Log.d("MyOrderActivity", "Back button touched: ${event.action}")
-            false // Cho phép sự kiện click tiếp tục
-        }
-
         loadProfile()
-        loadOrders()
         initOrderList()
+        loadOrders()
     }
 
     private fun loadProfile() {
-        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return
-        val database = FirebaseDatabase.getInstance().reference
+        val userId = tinyDB.getLong("userId")
+        if (userId == 0L) {
+            Toast.makeText(this, "Vui lòng đăng nhập lại", Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
 
-        database.child("Users").child(userId)
-            .addListenerForSingleValueEvent(object : ValueEventListener {
-                override fun onDataChange(snapshot: DataSnapshot) {
-                    val profileName = snapshot.child("profile_name").getValue(String::class.java)
-                        ?: tinyDB.getString("profile_name") ?: "Quang Huy"
-                    val address = snapshot.child("address").getValue(String::class.java)
-                        ?: tinyDB.getString("profile_address") ?: "Chưa cập nhật"
-                    val phone = snapshot.child("phone").getValue(String::class.java)
-                        ?: tinyDB.getString("profile_phone") ?: "Chưa cập nhật"
+        // Hiển thị thông tin user từ TinyDB
+        val fullname = tinyDB.getString("fullname") ?: "Chưa cập nhật"
+        val email = tinyDB.getString("email") ?: "Chưa cập nhật"
+        val phone = tinyDB.getString("phone") ?: "Chưa cập nhật"
 
-                    val user = UserModel(
-                        name = profileName,
-                        address = address,
-                        phone = phone
-                    )
+        binding.nameTxt.text = "Tên: $fullname"
+        binding.addressTxt.text = "Email: $email"
+        binding.phoneTxt.text = "Số điện thoại: $phone"
 
-                    binding.nameTxt.text = "Tên: ${user.name}"
-                    binding.addressTxt.text = "Địa chỉ: ${user.address}"
-                    binding.phoneTxt.text = "Số điện thoại: ${user.phone}"
-                    Log.d("MyOrderActivity", "Profile loaded: $user")
-
-                    if (user.address == "Chưa cập nhật" && user.phone == "Chưa cập nhật") {
-                        Toast.makeText(this@MyOrderActivity, "Vui lòng cập nhật địa chỉ và số điện thoại trong hồ sơ", Toast.LENGTH_SHORT).show()
-                    }
-                }
-
-                override fun onCancelled(error: DatabaseError) {
-                    Log.e("MyOrderActivity", "Failed to load profile: ${error.message}")
-                    val profileName = tinyDB.getString("profile_name") ?: "Quang Huy"
-                    val address = tinyDB.getString("profile_address") ?: "Chưa cập nhật"
-                    val phone = tinyDB.getString("profile_phone") ?: "Chưa cập nhật"
-                    binding.nameTxt.text = "Tên: $profileName"
-                    binding.addressTxt.text = "Địa chỉ: $address"
-                    binding.phoneTxt.text = "Số điện thoại: $phone"
-                    Toast.makeText(this@MyOrderActivity, "Lỗi tải hồ sơ: ${error.message}", Toast.LENGTH_SHORT).show()
-                }
-            })
+        if (phone == "Chưa cập nhật") {
+            Toast.makeText(this, "Vui lòng cập nhật số điện thoại trong phần thông tin cá nhân", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun loadOrders() {
-        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return
-        val database = FirebaseDatabase.getInstance().reference
-        database.child("Users").child(userId).child("orders")
-            .addValueEventListener(object : ValueEventListener {
-                override fun onDataChange(snapshot: DataSnapshot) {
-                    orders.clear()
-                    for (orderSnapshot in snapshot.children) {
-                        val order = orderSnapshot.getValue(OrderModel::class.java)
-                        order?.let { orders.add(it) }
-                    }
-                    binding.orderRecyclerView.adapter?.notifyDataSetChanged()
-                    Log.d("MyOrderActivity", "Orders loaded: ${orders.size}")
-                }
+        val userId = tinyDB.getLong("userId")
+        if (userId == 0L) {
+            Toast.makeText(this, "Vui lòng đăng nhập lại", Toast.LENGTH_SHORT).show()
+            return
+        }
 
-                override fun onCancelled(error: DatabaseError) {
-                    Log.e("MyOrderActivity", "Failed to load orders: ${error.message}")
-                    Toast.makeText(this@MyOrderActivity, "Lỗi tải đơn hàng!", Toast.LENGTH_SHORT).show()
+        showLoading()
+
+        api.getOrders(userId).enqueue(object : Callback<List<OrderModel>> {
+            override fun onResponse(call: Call<List<OrderModel>>, response: Response<List<OrderModel>>) {
+                hideLoading()
+                if (response.isSuccessful && response.body() != null) {
+                    orders.clear()
+                    orders.addAll(response.body()!!)
+                    binding.orderRecyclerView.adapter?.notifyDataSetChanged()
+                    Log.d(TAG, "Orders loaded: ${orders.size}")
+
+                    if (orders.isEmpty()) {
+                        Toast.makeText(this@MyOrderActivity, "Bạn chưa có đơn hàng nào", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    val errorMessage = when (response.code()) {
+                        404 -> "Không tìm thấy đơn hàng"
+                        401 -> "Phiên đăng nhập hết hạn"
+                        else -> "Lỗi tải đơn hàng: ${response.code()}"
+                    }
+                    Toast.makeText(this@MyOrderActivity, errorMessage, Toast.LENGTH_SHORT).show()
+                    Log.e(TAG, "Failed to load orders: ${response.code()} - ${response.message()}")
                 }
-            })
+            }
+
+            override fun onFailure(call: Call<List<OrderModel>>, t: Throwable) {
+                hideLoading()
+                Toast.makeText(this@MyOrderActivity, "Lỗi kết nối: ${t.message}", Toast.LENGTH_SHORT).show()
+                Log.e(TAG, "Failed to load orders: ${t.message}")
+            }
+        })
     }
 
     private fun initOrderList() {
         binding.orderRecyclerView.layoutManager = LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false)
         binding.orderRecyclerView.adapter = OrderAdapter(orders)
+    }
+
+    private fun showLoading() {
+        binding.progressBar.visibility = android.view.View.VISIBLE
+    }
+
+    private fun hideLoading() {
+        binding.progressBar.visibility = android.view.View.GONE
     }
 }

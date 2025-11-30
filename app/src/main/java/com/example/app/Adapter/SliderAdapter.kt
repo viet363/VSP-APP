@@ -12,21 +12,17 @@ import com.example.app.Model.SliderModel
 import com.example.app.databinding.SliderItemContainerBinding
 
 
-//tác dụng là tạo 1 thanh trượt hình ảnh
 
 class SliderAdapter(private var sliderItems:List<SliderModel>, private  var viewPager2: ViewPager2) :
     RecyclerView.Adapter<SliderAdapter.SliderViewholder>() {
 
         private lateinit var context: Context
 
-        //có tác dụng gán lại Item:1 và làm mới adapter:2
         private var runnable = Runnable {
             sliderItems = sliderItems
-       //     notifyDataSetChanged() 
         }
 
 
-    //đại diện cho 1 ảnh trong thanh trượt
     class SliderViewholder(private var binding: SliderItemContainerBinding): RecyclerView.ViewHolder(binding.root) {
                    fun setImage(sliderItems: SliderModel, context: Context){
                       Glide.with(context)
@@ -36,7 +32,6 @@ class SliderAdapter(private var sliderItems:List<SliderModel>, private  var view
                    }
     }
 
-    //Tạo một SliderViewholder mới khi cần.
     override fun onCreateViewHolder(
         parent: ViewGroup,
         viewType: Int
@@ -46,14 +41,12 @@ class SliderAdapter(private var sliderItems:List<SliderModel>, private  var view
         return SliderViewholder(binding)
     }
 
-    //Liên kết dữ liệu với SliderViewholder tại vị trí cụ thể kiểu như ấn vào ảnh nào là nó biết vị trí ảnh đó
     override fun onBindViewHolder(holder: SliderAdapter.SliderViewholder, position: Int) {
       holder.setImage(sliderItems[position],context)
         if(position == sliderItems.lastIndex -1){
             viewPager2.post(runnable)
         }
     }
-
     override fun getItemCount():  Int=sliderItems.size
 }
 

@@ -8,12 +8,19 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.example.app.Activity.DetailActivity
 import com.example.app.Model.ItemsModel
+import com.example.app.R
 import com.example.app.databinding.ViewholderRecommendedBinding
 
-class RecommendedAdapter(val items: MutableList<ItemsModel>) :
+class RecommendedAdapter(private var items: List<ItemsModel> = emptyList()) :
     RecyclerView.Adapter<RecommendedAdapter.Viewholder>() {
 
-    class Viewholder(val binding: ViewholderRecommendedBinding) : RecyclerView.ViewHolder(binding.root)
+    class Viewholder(val binding: ViewholderRecommendedBinding) :
+        RecyclerView.ViewHolder(binding.root)
+
+    fun updateData(newItems: List<ItemsModel>) {
+        items = newItems
+        notifyDataSetChanged()
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Viewholder {
         val binding = ViewholderRecommendedBinding.inflate(
@@ -27,23 +34,22 @@ class RecommendedAdapter(val items: MutableList<ItemsModel>) :
 
         with(holder.binding) {
             titleTxt.text = item.title
-            priceTxt.text = "$${item.price}"
+            priceTxt.text = "${item.price}$"
             ratingTxt.text = item.rating.toString()
 
-            // Kiểm tra nếu picUrl không rỗng để tránh lỗi
-            if (item.picUrl.isNotEmpty()) {
-                Glide.with(holder.itemView.context)
-                    .load(item.picUrl[0]) // Lấy hình đầu tiên trong danh sách
-                    .into(pic)
-            }
+            val img = item.picUrl.firstOrNull()
 
-            // Xử lý sự kiện click vào item
+            Glide.with(holder.itemView.context)
+                .load(img)
+                .placeholder(R.drawable.placeholder)
+                .error(R.drawable.placeholder)
+                .into(pic)
+
             root.setOnClickListener {
-                val intent = Intent(holder.itemView.context, DetailActivity::class.java).apply {
-                    putExtra("object", item)
-                    putExtra("itemKey", item.id)
-                }
-                ContextCompat.startActivity(holder.itemView.context, intent , null)
+                val intent = Intent(holder.itemView.context, DetailActivity::class.java)
+                intent.putExtra("object", item)
+                intent.putExtra("itemKey", item.id)
+                ContextCompat.startActivity(holder.itemView.context, intent, null)
             }
         }
     }

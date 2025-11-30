@@ -1,7 +1,9 @@
 package com.example.app.Model
 
 data class CategoryModel(
-    val title:String ="",
-    val id:Int=0,
-    val picUrl:String=""
+    val id: Long,
+    val categoryName: String,
+    val picUrl: String?,
+    val createAt: String?,
+    val updateAt: String?
 )

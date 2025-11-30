@@ -15,9 +15,7 @@
         android:layout_height="wrap_content"
         android:layout_margin="30dp"
         app:cardCornerRadius="30dp"
-        app:cardElevation="20dp"
-
-        >
+        app:cardElevation="20dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -30,62 +28,98 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Sign Up"
+                android:text="Đăng ký"
                 android:textAlignment="center"
                 android:textColor="@color/lavender"
                 android:textSize="36sp"
                 android:textStyle="bold" />
 
+            <!-- Fullname - Tạm thời bỏ icon -->
             <EditText
-                android:id="@+id/edtsignup_email"
+                android:id="@+id/edtFullname"
                 android:layout_width="match_parent"
                 android:layout_height="50dp"
-                android:layout_marginTop="40dp"
+                android:layout_marginTop="20dp"
                 android:background="@drawable/custom_edittext"
-                android:drawableLeft="@drawable/baseline_account_circle_24"
                 android:drawablePadding="8dp"
-                android:hint="Email"
+                android:hint="Full Name"
                 android:maxLines="1"
                 android:padding="8dp"
-                android:textColor="@color/black"
+                android:textColor="@color/black" />
 
-                />
-
+            <!-- Username - Tạm thời bỏ icon -->
             <EditText
-                android:id="@+id/edtpassword"
+                android:id="@+id/edtUsername"
                 android:layout_width="match_parent"
                 android:layout_height="50dp"
                 android:layout_marginTop="15dp"
                 android:background="@drawable/custom_edittext"
-                android:drawableLeft="@drawable/icon_lock"
                 android:drawablePadding="8dp"
-                android:hint="Password"
+                android:hint="Username"
                 android:maxLines="1"
                 android:padding="8dp"
-                android:textColor="@color/black"
+                android:textColor="@color/black" />
 
-                />
+            <EditText
+                android:id="@+id/edtsignupEmail"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:layout_marginTop="15dp"
+                android:background="@drawable/custom_edittext"
+                android:drawablePadding="8dp"
+                android:hint="Email"
+                android:inputType="textEmailAddress"
+                android:maxLines="1"
+                android:padding="8dp"
+                android:textColor="@color/black" />
 
+            <EditText
+                android:id="@+id/edtPassword"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:layout_marginTop="15dp"
+                android:background="@drawable/custom_edittext"
+                android:drawableStart="@drawable/icon_lock"
+                android:drawablePadding="8dp"
+                android:hint="Password"
+                android:inputType="textPassword"
+                android:maxLines="1"
+                android:padding="8dp"
+                android:textColor="@color/black" />
+
+            <EditText
+                android:id="@+id/edtConfirmPassword"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:layout_marginTop="15dp"
+                android:background="@drawable/custom_edittext"
+                android:drawableStart="@drawable/icon_lock"
+                android:drawablePadding="8dp"
+                android:hint="Confirm Password"
+                android:inputType="textPassword"
+                android:maxLines="1"
+                android:padding="8dp"
+                android:textColor="@color/black" />
 
             <Button
-                android:id="@+id/btn_SignUp"
+                android:id="@+id/btnSignUp"
                 android:layout_width="match_parent"
                 android:layout_height="60dp"
                 android:layout_marginTop="30dp"
                 android:backgroundTint="@color/lavender"
-                android:text="SIGN UP"
+                android:text="Đăng ký"
                 android:textSize="18sp" />
 
+            <Button
+                android:id="@+id/btnChange"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:layout_marginTop="15dp"
+                android:background="@android:color/transparent"
+                android:text="Quay lại trang đăng nhập"
+                android:textColor="@color/lavender"
+                android:textSize="14sp" />
 
         </LinearLayout>
-
-
     </androidx.cardview.widget.CardView>
-
-    <ImageButton
-        android:id="@+id/btn_Change"
-        android:layout_width="300dp"
-        android:layout_height="40dp"
-        app:srcCompat="@drawable/baseline_arrow_circle_right_24" />
-
 </LinearLayout>

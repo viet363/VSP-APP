@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/background"
-    android:padding="16dp">
+    android:background="@color/white"
+    android:padding="16dp"
+    tools:context=".Activity.MyOrderActivity">
 
     <!-- Back Button -->
     <ImageButton
@@ -12,7 +14,7 @@
         android:layout_width="56dp"
         android:layout_height="56dp"
         android:padding="12dp"
-        android:src="@drawable/ic_back"
+        android:src="@drawable/ic_arrow_back"
         android:contentDescription="Quay lại"
         android:background="@drawable/circle_background"
         android:enabled="true"
@@ -28,7 +30,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
         android:text="Thông tin giao hàng"
-        android:textColor="@color/text_primary"
+        android:textColor="@color/black"
         android:textSize="20sp"
         android:textStyle="bold"
         android:fontFamily="sans-serif-medium"
@@ -41,7 +43,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        app:cardBackgroundColor="@color/card_background"
+        app:cardBackgroundColor="@color/white"
         app:cardCornerRadius="12dp"
         app:cardElevation="4dp"
         app:layout_constraintEnd_toEndOf="parent"
@@ -59,7 +61,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Tên: "
-                android:textColor="@color/text_primary"
+                android:textColor="@color/black"
                 android:textSize="16sp"
                 android:fontFamily="sans-serif" />
 
@@ -68,8 +70,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:text="Địa chỉ: "
-                android:textColor="@color/text_primary"
+                android:text="Email: "
+                android:textColor="@color/black"
                 android:textSize="16sp"
                 android:fontFamily="sans-serif" />
 
@@ -79,7 +81,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:text="Số điện thoại: "
-                android:textColor="@color/text_primary"
+                android:textColor="@color/black"
                 android:textSize="16sp"
                 android:fontFamily="sans-serif" />
 
@@ -93,12 +95,23 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
         android:text="Danh sách đơn hàng"
-        android:textColor="@color/text_primary"
+        android:textColor="@color/black"
         android:textSize="20sp"
         android:textStyle="bold"
         android:fontFamily="sans-serif-medium"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/deliveryCard" />
+
+    <!-- Progress Bar -->
+    <ProgressBar
+        android:id="@+id/progressBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/ordersTitle"
+        android:layout_marginTop="16dp" />
 
     <!-- Orders RecyclerView -->
     <androidx.recyclerview.widget.RecyclerView
@@ -109,6 +122,6 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/ordersTitle" />
+        app:layout_constraintTop_toBottomOf="@id/progressBar" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

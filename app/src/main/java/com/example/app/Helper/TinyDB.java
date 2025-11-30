@@ -138,6 +138,7 @@ public class TinyDB {
         return !(fullPath == null || theBitmap == null) && saveBitmap(fullPath, theBitmap);
     }
 
+
     // Getters
 
     /**

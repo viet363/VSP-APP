@@ -7,13 +7,11 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.example.app.Model.ItemsModel
+import com.bumptech.glide.Glide
 import com.example.app.Model.OrderModel
 import com.example.app.R
-import com.bumptech.glide.Glide
 import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.util.*
 
 class OrderAdapter(private val orders: List<OrderModel>) : RecyclerView.Adapter<OrderAdapter.OrderViewHolder>() {
 
@@ -22,6 +20,7 @@ class OrderAdapter(private val orders: List<OrderModel>) : RecyclerView.Adapter<
         val itemsRecyclerView: RecyclerView = itemView.findViewById(R.id.itemsRecyclerView)
         val totalTxt: TextView = itemView.findViewById(R.id.totalTxt)
         val statusTxt: TextView = itemView.findViewById(R.id.statusTxt)
+        val addressTxt: TextView = itemView.findViewById(R.id.addressTxt) // ĐÃ THÊM
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): OrderViewHolder {
@@ -31,24 +30,43 @@ class OrderAdapter(private val orders: List<OrderModel>) : RecyclerView.Adapter<
 
     override fun onBindViewHolder(holder: OrderViewHolder, position: Int) {
         val order = orders[position]
-        val date = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(order.timestamp))
-        holder.dateTxt.text = "Ngày: $date"
-        // Sử dụng NumberFormat để định dạng tổng tiền cho nhất quán với CartActivity
+
+        // Format date
+        val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+        val date = dateFormat.format(order.orderDate)
+        holder.dateTxt.text = "Ngày đặt: $date"
+
+        // Format total
         val formatter = java.text.NumberFormat.getNumberInstance(Locale("vi", "VN"))
         formatter.minimumFractionDigits = 0
         formatter.maximumFractionDigits = 0
-        holder.totalTxt.text = "Tổng: ${formatter.format(order.total.toLong())}$"
-        holder.statusTxt.text = "Trạng thái: ${order.status}"
+        holder.totalTxt.text = "Tổng: ${formatter.format(order.total)}$"
 
-        // Hiển thị danh sách sản phẩm trong đơn hàng
+        // Status and address
+        holder.statusTxt.text = "Trạng thái: ${getStatusText(order.orderStatus)}"
+        holder.addressTxt.text = "Địa chỉ: ${order.shipAddress}"
+
+        // Hiển thị danh sách sản phẩm
         holder.itemsRecyclerView.layoutManager = LinearLayoutManager(holder.itemView.context, LinearLayoutManager.VERTICAL, false)
         holder.itemsRecyclerView.adapter = OrderItemAdapter(order.items)
     }
 
     override fun getItemCount(): Int = orders.size
+
+    private fun getStatusText(status: String): String {
+        return when (status) {
+            "Pending" -> "Chờ xác nhận"
+            "Processing" -> "Đang xử lý"
+            "Shipped" -> "Đang giao hàng"
+            "Delivered" -> "Đã giao"
+            "Cancelled" -> "Đã hủy"
+            "Returned" -> "Đã trả hàng"
+            else -> status
+        }
+    }
 }
 
-class OrderItemAdapter(private val items: List<ItemsModel>) : RecyclerView.Adapter<OrderItemAdapter.OrderItemViewHolder>() {
+class OrderItemAdapter(private val items: List<com.example.app.Model.OrderItemModel>) : RecyclerView.Adapter<OrderItemAdapter.OrderItemViewHolder>() {
 
     class OrderItemViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val titleTxt: TextView = itemView.findViewById(R.id.titleTxt)
@@ -64,17 +82,23 @@ class OrderItemAdapter(private val items: List<ItemsModel>) : RecyclerView.Adapt
 
     override fun onBindViewHolder(holder: OrderItemViewHolder, position: Int) {
         val item = items[position]
-        holder.titleTxt.text = item.title
-        // Sử dụng NumberFormat để định dạng giá
+        holder.titleTxt.text = item.productName ?: "Sản phẩm"
+
         val formatter = java.text.NumberFormat.getNumberInstance(Locale("vi", "VN"))
         formatter.minimumFractionDigits = 0
         formatter.maximumFractionDigits = 0
-        holder.priceTxt.text = "Giá: ${formatter.format(item.price)}$"
-        holder.quantityTxt.text = "Số lượng: ${item.numberInCart}"
-        // Thêm placeholder cho Glide
-        Glide.with(holder.itemView.context)
-            .load(if (item.picUrl.isNotEmpty()) item.picUrl[0] else R.drawable.placeholder)
-            .into(holder.imageView)
+        holder.priceTxt.text = "Giá: ${formatter.format(item.unitPrice)}$"
+        holder.quantityTxt.text = "Số lượng: ${item.quantity}"
+
+        // Load image
+        item.productImage?.let { imageUrl ->
+            Glide.with(holder.itemView.context)
+                .load(imageUrl)
+                .placeholder(R.drawable.placeholder)
+                .into(holder.imageView)
+        } ?: run {
+            holder.imageView.setImageResource(R.drawable.placeholder)
+        }
     }
 
     override fun getItemCount(): Int = items.size
