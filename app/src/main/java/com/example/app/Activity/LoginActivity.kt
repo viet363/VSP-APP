@@ -6,6 +6,7 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.example.app.Helper.TinyDB
+import com.example.app.Model.UserData
 import com.example.app.Network.AuthApi
 import com.example.app.Network.RetrofitClient
 import com.example.app.Model.UserModel
@@ -24,7 +25,7 @@ class LoginActivity : AppCompatActivity() {
     private lateinit var binding: ActivityLoginBinding
     private lateinit var tinyDB: TinyDB
     private lateinit var googleSignInClient: GoogleSignInClient
-    private val api = RetrofitClient.instance.create(AuthApi::class.java)
+    private val api by lazy { RetrofitClient.authApi(this) }
 
     private val googleSignInLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -79,40 +80,27 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun loginWithUsernameOrEmail(usernameOrEmail: String, password: String) {
-        val isEmail = usernameOrEmail.contains("@")
-
         val body = hashMapOf(
-            "username" to if (!isEmail) usernameOrEmail else "",
-            "email" to if (isEmail) usernameOrEmail else "",
+            "username" to usernameOrEmail,
             "password" to password
         )
 
-        api.login(body).enqueue(object : Callback<UserModel> {
+        RetrofitClient.authApi(this).login(body).enqueue(object : Callback<UserModel> {
             override fun onResponse(call: Call<UserModel>, response: Response<UserModel>) {
-                if (response.isSuccessful && response.body() != null) {
-                    val user = response.body()!!
+                if (response.isSuccessful && response.body()?.success == true) {
+
+                    val user = response.body()!!.user!!
                     saveUserData(user)
                     Toast.makeText(this@LoginActivity, "Đăng nhập thành công!", Toast.LENGTH_SHORT).show()
                     startActivity(Intent(this@LoginActivity, MainActivity::class.java))
                     finish()
                 } else {
-                    val errorMessage = try {
-                        val errorBody = response.errorBody()?.string()
-                        if (errorBody != null) {
-                            val jsonObject = JSONObject(errorBody)
-                            jsonObject.getString("message")
-                        } else {
-                            "Sai thông tin đăng nhập"
-                        }
-                    } catch (e: Exception) {
-                        "Sai thông tin đăng nhập"
-                    }
-                    Toast.makeText(this@LoginActivity, errorMessage, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@LoginActivity, "Sai tài khoản hoặc mật khẩu", Toast.LENGTH_SHORT).show()
                 }
             }
 
             override fun onFailure(call: Call<UserModel>, t: Throwable) {
-                Toast.makeText(this@LoginActivity, "Lỗi kết nối server: ${t.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@LoginActivity, "Lỗi server: ${t.message}", Toast.LENGTH_SHORT).show()
             }
         })
     }
@@ -130,11 +118,16 @@ class LoginActivity : AppCompatActivity() {
         api.loginWithGoogle(body).enqueue(object : Callback<UserModel> {
             override fun onResponse(call: Call<UserModel>, response: Response<UserModel>) {
                 if (response.isSuccessful && response.body() != null) {
-                    val user = response.body()!!
-                    saveUserData(user)
-                    Toast.makeText(this@LoginActivity, "Đăng nhập Google thành công!", Toast.LENGTH_SHORT).show()
-                    startActivity(Intent(this@LoginActivity, MainActivity::class.java))
-                    finish()
+                    val userModel = response.body()!!
+                    // SỬA LỖI Ở ĐÂY: Lấy user từ UserModel thay vì truyền trực tiếp UserModel
+                    if (userModel.success == true && userModel.user != null) {
+                        saveUserData(userModel.user!!)
+                        Toast.makeText(this@LoginActivity, "Đăng nhập Google thành công!", Toast.LENGTH_SHORT).show()
+                        startActivity(Intent(this@LoginActivity, MainActivity::class.java))
+                        finish()
+                    } else {
+                        Toast.makeText(this@LoginActivity, "Đăng nhập Google thất bại", Toast.LENGTH_SHORT).show()
+                    }
                 } else {
                     val errorMessage = try {
                         val errorBody = response.errorBody()?.string()
@@ -157,10 +150,9 @@ class LoginActivity : AppCompatActivity() {
         })
     }
 
-    private fun saveUserData(user: UserModel) {
-        tinyDB.putString("token", user.token ?: "")
-        tinyDB.putLong("userId", user.id)
-        tinyDB.putString("username", user.username)
+    private fun saveUserData(user: UserData) {
+        tinyDB.putLong("userId", user.id ?: 0)
+        tinyDB.putString("username", user.username ?: "")
         tinyDB.putString("email", user.email ?: "")
         tinyDB.putString("fullname", user.fullname ?: "")
         tinyDB.putString("avatar", user.avatar ?: "")

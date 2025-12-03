@@ -36,3 +36,13 @@ data class OrderDetailModel(
     val order: OrderModel,
     val items: List<OrderItemModel>
 )
+data class OrderResponse(
+    val success: Boolean,
+    val orders: List<OrderModel>,
+    val message: String? = null
+)
+data class OrderDetailResponse(
+    val success: Boolean,
+    val order: OrderDetailModel,
+    val message: String? = null
+)

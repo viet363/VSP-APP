@@ -7,7 +7,7 @@ import retrofit2.http.Path
 
 interface RecommendApiService {
 
-    @GET("api/mobile/recommend/{userId}")
+    @GET("recommend/{userId}")
     fun getRecommendedProducts(
         @Path("userId") userId: Int
     ): Call<RecommendResponse>

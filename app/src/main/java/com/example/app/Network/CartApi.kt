@@ -1,21 +1,23 @@
 package com.example.app.Network
 
-import com.example.app.Model.CartModel
-import com.example.app.Model.CartDetailModel
+import com.example.app.Model.CartResponse
 import retrofit2.Call
 import retrofit2.http.*
 
 interface CartApi {
 
-    @GET("cart/{userId}")
-    fun getCart(@Path("userId") userId: Long): Call<CartModel>
+    @GET("mobile/cart")
+    fun getCart(): Call<CartResponse>
 
-    @POST("cart/add")
-    fun addToCart(@Body body: HashMap<String, Any>): Call<CartDetailModel>
+    @POST("mobile/cart")
+    fun addToCart(@Body body: HashMap<String, Any>): Call<Map<String, Any>>
 
-    @PUT("cart/update")
-    fun updateCart(@Body body: HashMap<String, Any>): Call<CartDetailModel>
+    @PUT("mobile/cart/{id}")
+    fun updateCart(
+        @Path("id") id: Long,
+        @Body body: HashMap<String, Any>
+    ): Call<Map<String, Any>>
 
-    @DELETE("cart/delete/{id}")
-    fun deleteCartItem(@Path("id") id: Long): Call<CartDetailModel>
+    @DELETE("mobile/cart/{id}")
+    fun deleteCartItem(@Path("id") id: Long): Call<Map<String, Boolean>>
 }

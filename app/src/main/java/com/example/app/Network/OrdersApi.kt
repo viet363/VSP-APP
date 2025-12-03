@@ -1,19 +1,19 @@
 package com.example.app.Network
 
-import com.example.app.Model.OrderModel
-import com.example.app.Model.OrderDetailModel
+import com.example.app.Model.OrderDetailResponse
+import com.example.app.Model.OrderResponse // Tạo response model mới
 import retrofit2.Call
 import retrofit2.http.*
 
 interface OrdersApi {
 
     @GET("orders")
-    fun getOrders(): Call<Map<String, Any>>
+    fun getOrders(): Call<OrderResponse>
 
     @GET("orders/{orderId}")
     fun getOrderDetail(
         @Path("orderId") orderId: Long
-    ): Call<Map<String, Any>>
+    ): Call<OrderDetailResponse>
 
     @POST("orders/create")
     fun createOrder(

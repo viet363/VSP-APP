@@ -8,6 +8,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Observer
 import androidx.recyclerview.widget.GridLayoutManager
 import com.example.app.Adapter.ListItemsAdapter
+import com.example.app.Helper.TinyDB
 import com.example.app.Model.ItemsModel
 import com.example.app.ViewModel.MainViewModel
 import com.example.app.databinding.ActivityListItemsBinding
@@ -32,20 +33,14 @@ class ListItemsActivity : AppCompatActivity() {
         initList()
     }
 
-    /**
-     * Init UI and load list
-     */
     private fun initList() {
         binding.apply {
 
             backBtn.setOnClickListener { finish() }
             progressBarList.visibility = View.VISIBLE
 
-            // ===== 1. Nếu là kết quả tìm kiếm =====
             if (searchQuery.isNotEmpty()) {
-
-                val searchResults =
-                    intent.getParcelableArrayListExtra<ItemsModel>("searchResults")
+                val searchResults = intent.getSerializableExtra("searchResults") as? ArrayList<ItemsModel>
 
                 Log.d(TAG, "searchResults('$searchQuery'): ${searchResults?.size ?: 0}")
 
@@ -62,10 +57,8 @@ class ListItemsActivity : AppCompatActivity() {
                 return
             }
 
-            // ===== 2. Nếu vào từ Category =====
             categoryTxt.text = title
 
-            // Observe LiveData chỉ 1 lần
             viewModel.recommended.observe(this@ListItemsActivity, Observer { items ->
                 viewList.layoutManager = GridLayoutManager(this@ListItemsActivity, 2)
                 viewList.adapter = ListItemsAdapter(items.toMutableList())
@@ -73,20 +66,20 @@ class ListItemsActivity : AppCompatActivity() {
                 progressBarList.visibility = View.GONE
             })
 
-            // Gọi API theo ID category
             if (id.isNotEmpty()) {
                 Log.d(TAG, "Load items for category ID = $id")
+                // Sửa lỗi 2: Truyền trực tiếp id (đã là String)
                 viewModel.loadFiltered(id)
             } else {
                 Log.d(TAG, "Loading recommended items...")
-                viewModel.loadRecommended()
+                val tinyDB = TinyDB(this@ListItemsActivity)
+                val userId = tinyDB.getLong("userId")
+                viewModel.loadRecommended(userId)
             }
+
         }
     }
 
-    /**
-     * Lấy bundle được gửi từ Adapter
-     */
     private fun getBundle() {
         id = intent.getStringExtra("id") ?: ""
         title = intent.getStringExtra("title") ?: ""

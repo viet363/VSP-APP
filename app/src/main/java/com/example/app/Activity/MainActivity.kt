@@ -2,7 +2,6 @@ package com.example.app.Activity
 
 import android.content.Intent
 import android.os.Bundle
-import android.util.Log
 import android.view.View
 import android.widget.Toast
 import androidx.activity.viewModels
@@ -14,7 +13,6 @@ import com.example.app.Adapter.RecommendedAdapter
 import com.example.app.Adapter.SliderAdapter
 import com.example.app.Helper.TinyDB
 import com.example.app.Model.CategoryModel
-import com.example.app.Model.ItemsModel
 import com.example.app.Model.SliderModel
 import com.example.app.ViewModel.MainViewModel
 import com.example.app.databinding.ActivityMainBinding
@@ -25,7 +23,8 @@ class MainActivity : BaseActivity() {
     private lateinit var tinyDB: TinyDB
     private val viewModel: MainViewModel by viewModels()
 
-    private val TAG = "MainActivity"
+    // FIX lỗi userId không tồn tại trong hàm khác
+    private var userId: String = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -34,15 +33,16 @@ class MainActivity : BaseActivity() {
 
         tinyDB = TinyDB(this)
 
-        // Không dùng Firebase nữa → userId lấy từ local
-        val userId = tinyDB.getString("userId")
-        if (userId.isNullOrEmpty()) {
+        userId = tinyDB.getString("userId") ?: ""
+
+        if (userId.isEmpty()) {
             startActivity(Intent(this, LoginActivity::class.java))
             finish()
             return
         }
 
-        binding.nametitle.text = tinyDB.getString("profile_name") ?: "Khách hàng thân mến"
+        binding.nametitle.text =
+            tinyDB.getString("profile_name") ?: "Khách hàng thân mến"
 
         initBanner()
         initCategory()
@@ -51,6 +51,7 @@ class MainActivity : BaseActivity() {
         initSearch()
     }
 
+    // ------------------------- SEARCH -------------------------
     private fun initSearch() {
         binding.btnSearch.setOnClickListener {
             binding.btnSearch.visibility = View.GONE
@@ -61,26 +62,20 @@ class MainActivity : BaseActivity() {
 
         binding.btnSearchSubmit.setOnClickListener {
             val query = binding.searchView.query.toString().trim()
-            if (query.isNotEmpty()) {
-                viewModel.searchProductsByName(query)
 
-                viewModel.searchResults.observe(this) { searchResults ->
-                    if (searchResults.isNotEmpty()) {
-                        val intent = Intent(this, ListItemsActivity::class.java).apply {
-                            putExtra("searchQuery", query)
-                            putParcelableArrayListExtra(
-                                "searchResults",
-                                ArrayList(searchResults)
-                            )
-                        }
-                        startActivity(intent)
-                    } else {
-                        Toast.makeText(this, "Không tìm thấy sản phẩm", Toast.LENGTH_SHORT).show()
-                    }
+            if (query.isEmpty()) {
+                Toast.makeText(this, "Vui lòng nhập tên sản phẩm", Toast.LENGTH_SHORT).show()
+            } else {
+                viewModel.searchProducts(query)
+
+                viewModel.searchResults.observe(this) { results ->
+                    // Xử lý kết quả tìm kiếm nếu cần
                 }
 
-            } else {
-                Toast.makeText(this, "Vui lòng nhập tên sản phẩm", Toast.LENGTH_SHORT).show()
+                // CHỈ GỬI query – KHÔNG gửi Parcelable
+                val intent = Intent(this, ListItemsActivity::class.java)
+                intent.putExtra("searchQuery", query)
+                startActivity(intent)
             }
 
             binding.searchView.setQuery("", false)
@@ -96,71 +91,88 @@ class MainActivity : BaseActivity() {
 
         viewModel.recommended.observe(this) { items ->
             binding.progressBarRecommend.visibility = View.GONE
-
-            if (items.isNullOrEmpty()) {
-                binding.viewRecommendation.adapter = RecommendedAdapter(mutableListOf())
-            } else {
-                binding.viewRecommendation.adapter = RecommendedAdapter(items.toMutableList())
+            if (items.isNotEmpty()) {
+                binding.viewRecommendation.adapter =
+                    RecommendedAdapter(items.toMutableList())
             }
         }
 
-        viewModel.loadRecommended()
+        val userIdLong = userId.toLongOrNull() ?: 0L
+        viewModel.loadRecommended(userIdLong)
     }
 
     private fun initCategory() {
         binding.progressBarCategory.visibility = View.VISIBLE
+
         binding.viewCategory.layoutManager =
             LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
 
-        viewModel.categories.observe(this) { categories ->
+        viewModel.categories.observe(this) { list ->
             binding.progressBarCategory.visibility = View.GONE
 
-            if (categories.isNullOrEmpty()) {
-                val dummy = mutableListOf(
-                    CategoryModel(1, "Electronic", "cat1.png", null, null),
-                    CategoryModel(2, "Fashion", "cat2.png", null, null)
+            if (list.isEmpty()) {
+                binding.viewCategory.adapter = CategoryAdapter(
+                    mutableListOf(
+                        CategoryModel(1, "Electronic", "cat1.png"),
+                        CategoryModel(2, "Fashion", "cat2.png")
+                    )
                 )
-                binding.viewCategory.adapter = CategoryAdapter(dummy)
             } else {
-                binding.viewCategory.adapter = CategoryAdapter(categories.toMutableList())
+                binding.viewCategory.adapter = CategoryAdapter(list.toMutableList())
             }
         }
 
-        viewModel.loadCategory()
+        viewModel.loadCategories()
     }
 
     private fun initBanner() {
         binding.progressBarSlider.visibility = View.VISIBLE
 
-        viewModel.banners.observe(this) { bannerList ->
-            if (bannerList.isNullOrEmpty()) {
-                val dummy = listOf(
-                    SliderModel("banner1.png"),
-                    SliderModel("banner2.png")
-                )
-                showBanner(dummy)
-            } else {
-                showBanner(bannerList)
-            }
-        }
+        // Sửa lỗi: Thay 'banners' bằng 'recommended' hoặc tạo LiveData riêng cho banner
+        // Tạm thời tạo banner giả
+        val fakeBanners = listOf(
+            SliderModel("banner1.png"),
+            SliderModel("banner2.png")
+        )
+        showBanner(fakeBanners)
 
-        viewModel.loadBanners()
+        // Nếu có API banner thì sử dụng:
+        // viewModel.banners.observe(this) { bannerList ->
+        //     val list = if (bannerList.isEmpty()) {
+        //         fakeBanners
+        //     } else bannerList
+        //     showBanner(list)
+        // }
     }
 
     private fun showBanner(images: List<SliderModel>) {
         binding.progressBarSlider.visibility = View.GONE
 
-        binding.viewPager2.adapter = SliderAdapter(images.toMutableList(), binding.viewPager2)
+        val adapter = SliderAdapter(images, binding.viewPager2)
+        binding.viewPager2.adapter = adapter
         binding.viewPager2.clipToPadding = false
         binding.viewPager2.clipChildren = false
         binding.viewPager2.offscreenPageLimit = 3
-        binding.viewPager2.getChildAt(0).overScrollMode = RecyclerView.OVER_SCROLL_NEVER
+
+        // Kiểm tra null trước khi truy cập
+        val child = binding.viewPager2.getChildAt(0)
+        if (child != null) {
+            child.overScrollMode = RecyclerView.OVER_SCROLL_NEVER
+        }
     }
 
     private fun initBottomMenu() {
-        binding.cartBtn.setOnClickListener { startActivity(Intent(this, CartActivity::class.java)) }
-        binding.profileBtn.setOnClickListener { startActivity(Intent(this, ProfileActivity::class.java)) }
-        binding.orderBtn.setOnClickListener { startActivity(Intent(this, MyOrderActivity::class.java)) }
-        binding.chatBtn.setOnClickListener { startActivity(Intent(this, MyChatActivity::class.java)) }
+        binding.cartBtn.setOnClickListener {
+            startActivity(Intent(this, CartActivity::class.java))
+        }
+        binding.profileBtn.setOnClickListener {
+            startActivity(Intent(this, ProfileActivity::class.java))
+        }
+        binding.orderBtn.setOnClickListener {
+            startActivity(Intent(this, MyOrderActivity::class.java))
+        }
+        binding.chatBtn.setOnClickListener {
+            startActivity(Intent(this, MyChatActivity::class.java))
+        }
     }
 }

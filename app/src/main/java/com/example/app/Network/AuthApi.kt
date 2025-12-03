@@ -9,14 +9,11 @@ interface AuthApi {
     @POST("auth/login")
     fun login(@Body body: HashMap<String, String>): Call<UserModel>
 
-    @POST("auth/login-google")
-    fun loginWithGoogle(@Body body: HashMap<String, String>): Call<UserModel>
-
     @POST("auth/register")
     fun register(@Body body: HashMap<String, String>): Call<UserModel>
 
-    @POST("auth/register-google")
-    fun registerWithGoogle(@Body body: HashMap<String, String>): Call<UserModel>
+    @POST("auth/login-google")
+    fun loginWithGoogle(@Body body: HashMap<String, String>): Call<UserModel>
 
     @GET("auth/profile/{id}")
     fun getProfile(@Path("id") id: Long): Call<UserModel>

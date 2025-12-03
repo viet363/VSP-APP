@@ -1,9 +1,15 @@
 package com.example.app.Model
 
 data class UserModel(
-    val id: Long,
-    val username: String,
-    val password: String? = null,
+    val success: Boolean,
+    val message: String? = null,
+    val token: String? = null,
+    val user: UserData? = null
+)
+
+data class UserData(
+    val id: Long?,
+    val username: String?,
     val email: String?,
     val fullname: String?,
     val gender: String?,
@@ -12,7 +18,5 @@ data class UserModel(
     val phone: String?,
     val createAt: String?,
     val updateAt: String?,
-    val token: String? = null,
-    val loginType: String? = "email",
-    val googleId: String? = null
+    val loginType: String?
 )

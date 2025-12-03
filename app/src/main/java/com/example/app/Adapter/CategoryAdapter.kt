@@ -36,14 +36,16 @@ class CategoryAdapter(private val items: MutableList<CategoryModel>) :
     override fun onBindViewHolder(holder: Viewholder, position: Int) {
         val item = items[position]
 
-        // Sửa tại đây
-        holder.binding.titleTxt.text = item.categoryName
+        // ✔ tên danh mục đúng theo BE
+        holder.binding.titleTxt.text = item.name
 
+        // ✔ ảnh đúng theo BE
         Glide.with(holder.itemView.context)
-            .load(item.picUrl)
+            .load(item.image_url)
             .placeholder(R.drawable.placeholder)
             .into(holder.binding.pic)
 
+        // UI chọn
         if (selectedPosition == position) {
             holder.binding.pic.setBackgroundResource(0)
             holder.binding.mainLayout.setBackgroundResource(R.drawable.green_button_bg)
@@ -76,31 +78,23 @@ class CategoryAdapter(private val items: MutableList<CategoryModel>) :
             )
         }
 
+        // ✔ click chuyển category
         holder.binding.root.setOnClickListener {
-            // Sửa lỗi tại đây: thay adapterPosition bằng bindingAdapterPosition
-            if (holder.bindingAdapterPosition != RecyclerView.NO_POSITION) {
+            if (holder.bindingAdapterPosition == RecyclerView.NO_POSITION) return@setOnClickListener
 
-                lastSelectedPosition = selectedPosition
-                selectedPosition = holder.bindingAdapterPosition
+            lastSelectedPosition = selectedPosition
+            selectedPosition = holder.bindingAdapterPosition
 
-                notifyItemChanged(lastSelectedPosition)
-                notifyItemChanged(selectedPosition)
+            notifyItemChanged(lastSelectedPosition)
+            notifyItemChanged(selectedPosition)
 
-                android.os.Handler(Looper.getMainLooper()).postDelayed({
-                    val intent = Intent(
-                        holder.itemView.context,
-                        ListItemsActivity::class.java
-                    ).apply {
-                        putExtra("id", item.id.toString())
-                        putExtra("title", item.categoryName)   // sửa tại đây
-                    }
-                    ContextCompat.startActivity(
-                        holder.itemView.context,
-                        intent,
-                        null
-                    )
-                }, 300)
-            }
+            android.os.Handler(Looper.getMainLooper()).postDelayed({
+                val intent = Intent(holder.itemView.context, ListItemsActivity::class.java).apply {
+                    putExtra("id", item.id.toString())
+                    putExtra("title", item.name)
+                }
+                ContextCompat.startActivity(holder.itemView.context, intent, null)
+            }, 300)
         }
     }
 

@@ -9,18 +9,14 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.app.Adapter.OrderAdapter
 import com.example.app.Helper.TinyDB
 import com.example.app.Model.OrderModel
-import com.example.app.Network.OrdersApi
+import com.example.app.Model.OrderResponse
 import com.example.app.Network.RetrofitClient
 import com.example.app.databinding.ActivityMyOrderBinding
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
 
 class MyOrderActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMyOrderBinding
     private lateinit var tinyDB: TinyDB
     private val orders = mutableListOf<OrderModel>()
-    private val api = RetrofitClient.instance.create(OrdersApi::class.java)
     private val TAG = "MyOrderActivity"
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -70,30 +66,33 @@ class MyOrderActivity : AppCompatActivity() {
     }
 
     private fun loadOrders() {
-        val userId = tinyDB.getLong("userId")
-        if (userId == 0L) {
-            Toast.makeText(this, "Vui lòng đăng nhập lại", Toast.LENGTH_SHORT).show()
-            return
-        }
 
         showLoading()
 
-        api.getOrders(userId).enqueue(object : Callback<List<OrderModel>> {
-            override fun onResponse(call: Call<List<OrderModel>>, response: Response<List<OrderModel>>) {
+        RetrofitClient.ordersApi.getOrders().enqueue(object : retrofit2.Callback<OrderResponse> {
+            override fun onResponse(call: retrofit2.Call<OrderResponse>, response: retrofit2.Response<OrderResponse>) {
                 hideLoading()
-                if (response.isSuccessful && response.body() != null) {
-                    orders.clear()
-                    orders.addAll(response.body()!!)
-                    binding.orderRecyclerView.adapter?.notifyDataSetChanged()
-                    Log.d(TAG, "Orders loaded: ${orders.size}")
+                if (response.isSuccessful) {
+                    val body = response.body()
+                    if (body != null && body.success) {
+                        orders.clear()
+                        orders.addAll(body.orders)
+                        binding.orderRecyclerView.adapter?.notifyDataSetChanged()
+                        Log.d(TAG, "Orders loaded: ${orders.size}")
 
-                    if (orders.isEmpty()) {
-                        Toast.makeText(this@MyOrderActivity, "Bạn chưa có đơn hàng nào", Toast.LENGTH_SHORT).show()
+                        if (orders.isEmpty()) {
+                            Toast.makeText(this@MyOrderActivity, "Bạn chưa có đơn hàng nào", Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        val errorMsg = body?.message ?: "Lỗi không xác định"
+                        Toast.makeText(this@MyOrderActivity, errorMsg, Toast.LENGTH_SHORT).show()
+                        Log.e(TAG, "API error: $errorMsg")
                     }
                 } else {
                     val errorMessage = when (response.code()) {
                         404 -> "Không tìm thấy đơn hàng"
                         401 -> "Phiên đăng nhập hết hạn"
+                        500 -> "Lỗi server"
                         else -> "Lỗi tải đơn hàng: ${response.code()}"
                     }
                     Toast.makeText(this@MyOrderActivity, errorMessage, Toast.LENGTH_SHORT).show()
@@ -101,7 +100,7 @@ class MyOrderActivity : AppCompatActivity() {
                 }
             }
 
-            override fun onFailure(call: Call<List<OrderModel>>, t: Throwable) {
+            override fun onFailure(call: retrofit2.Call<OrderResponse>, t: Throwable) {
                 hideLoading()
                 Toast.makeText(this@MyOrderActivity, "Lỗi kết nối: ${t.message}", Toast.LENGTH_SHORT).show()
                 Log.e(TAG, "Failed to load orders: ${t.message}")

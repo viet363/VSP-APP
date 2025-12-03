@@ -5,7 +5,7 @@ import java.io.Serializable
 data class RecommendResponse(
     val success: Boolean,
     val count: Int,
-    val data: List<RecommendedProduct>
+    val data: List<RecommendedProduct>?
 )
 
 data class RecommendedProduct(
@@ -23,7 +23,8 @@ data class ItemsModel(
     val description: String?,
     val price: Double,
     val picUrl: List<String>,
-    val rating: Double? = 0.0
+    val rating: Double? = 0.0,
+    var numberInCart: Int = 1
 ) : Serializable {
 
     constructor(r: RecommendedProduct) : this(
@@ -32,6 +33,7 @@ data class ItemsModel(
         description = r.Description,
         price = r.Price,
         picUrl = if (!r.ImageUrl.isNullOrEmpty()) listOf(r.ImageUrl) else emptyList(),
-        rating = r.Rating ?: 0.0
+        rating = r.Rating ?: 0.0,
+        numberInCart = 1
     )
 }

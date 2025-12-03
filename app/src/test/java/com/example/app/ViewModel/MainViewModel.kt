@@ -1,143 +1,132 @@
 package com.example.app.ViewModel
 
-import android.util.Log
-import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
-import com.example.app.Model.CategoryModel
-import com.example.app.Model.SliderModel
-import com.google.firebase.database.*
+import com.example.app.Model.*
+import com.example.app.Network.RetrofitClient
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
 
 class MainViewModel : ViewModel() {
 
-    private val firebaseDatabase = FirebaseDatabase.getInstance()
+    val categories = MutableLiveData<List<CategoryModel>>(emptyList())
+    val recommended = MutableLiveData<List<ItemsModel>>(emptyList())
+    val searchResults = MutableLiveData<List<ItemsModel>>(emptyList())
+    val banners = MutableLiveData<List<SliderModel>>(emptyList())
 
-    private val _banner = MutableLiveData<List<SliderModel>>()
-    val banners: LiveData<List<SliderModel>> = _banner
-
-    private val _Category = MutableLiveData<MutableList<CategoryModel>>()
-    val categories: LiveData<MutableList<CategoryModel>> = _Category
-
-    private val _Recommended = MutableLiveData<MutableList<ItemsModel>>()
-    val recommended: LiveData<MutableList<ItemsModel>> = _Recommended
-
-    fun loadFiltered(id: String) {
-        val ref = firebaseDatabase.getReference("Items")
-        val categoryIdLong = id.toLongOrNull() ?: return // Nếu id không phải số, thoát hàm
-        val query: Query = ref.orderByChild("categoryId").equalTo(categoryIdLong.toDouble()) // Firebase cần Double cho number
-
-        query.addListenerForSingleValueEvent(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val lists = mutableListOf<ItemsModel>()
-                for (childSnapshot in snapshot.children) {
-                    val item = childSnapshot.getValue(ItemsModel::class.java)
-                    if (item != null) {
-                        item?.id = childSnapshot.key.toString()
-                        lists.add(item)
-                    }
-                }
-                Log.d("MainViewModel", "Filtered items for category $id: ${lists.size}")
-                _Recommended.postValue(lists)
-            }
-
-            override fun onCancelled(error: DatabaseError) {
-                Log.e("MainViewModel", "Load filtered failed: ${error.message}")
-            }
-        })
-    }
+    val errorMessage = MutableLiveData<String?>()
+    val isLoading = MutableLiveData<Boolean>(false)
 
 
-    fun loadRecommended() {
-        val ref = firebaseDatabase.getReference("Items")
-        val query: Query = ref.orderByChild("showRecommended").equalTo(true)
-
-        query.addListenerForSingleValueEvent(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val lists = mutableListOf<ItemsModel>()
-                for (childSnapshot in snapshot.children) {
-                    val item = childSnapshot.getValue(ItemsModel::class.java)
-                    if (item != null) {
-                        item.id = childSnapshot.key ?: ""
-                        lists.add(item)
-                    }
-                }
-                _Recommended.postValue(lists)
-            }
-
-            override fun onCancelled(error: DatabaseError) {
-                // Xử lý lỗi nếu cần
-            }
-        })
-    }
-
-    fun loadCategory() {
-        val ref = firebaseDatabase.getReference("Category")
-
-        ref.addValueEventListener(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val lists = mutableListOf<CategoryModel>()
-                for (childSnapshot in snapshot.children) {
-                    val category = childSnapshot.getValue(CategoryModel::class.java)
-                    if (category != null) {
-                        lists.add(category)
-                    }
-                }
-                _Category.postValue(lists)
-            }
-
-            override fun onCancelled(error: DatabaseError) {
-                // Xử lý lỗi nếu cần
-            }
-        })
-    }
-
-    fun loadBanners() {
-        val ref = firebaseDatabase.getReference("Banner")
-
-        ref.addValueEventListener(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val lists = mutableListOf<SliderModel>()
-                for (childSnapshot in snapshot.children) {
-                    val banner = childSnapshot.getValue(SliderModel::class.java)
-                    if (banner != null) {
-                        lists.add(banner)
-                    }
-                }
-                _banner.postValue(lists)
-            }
-
-            override fun onCancelled(error: DatabaseError) {
-                // Xử lý lỗi nếu cần
-            }
-        })
-    }
-
-
-
-    // Trong MainViewModel.kt
-    fun searchProducts(query: String): LiveData<List<ItemsModel>> {
-        val result = MutableLiveData<List<ItemsModel>>()
-
-        FirebaseDatabase.getInstance().getReference("Products")
-            .orderByChild("title")
-            .startAt(query)
-            .endAt(query + "\uf8ff")
-            .addListenerForSingleValueEvent(object : ValueEventListener {
-                override fun onDataChange(snapshot: DataSnapshot) {
-                    val products = mutableListOf<ItemsModel>()
-                    for (productSnapshot in snapshot.children) {
-                        productSnapshot.getValue(ItemsModel::class.java)?.let {
-                            products.add(it)
-                        }
-                    }
-                    result.value = products
+    // ------------------------- LOAD CATEGORY -------------------------
+    fun loadCategories() {
+        isLoading.value = true
+        RetrofitClient.categoriesApi.getAllCategories()
+            .enqueue(object : Callback<List<CategoryModel>> {
+                override fun onResponse(
+                    call: Call<List<CategoryModel>>,
+                    response: Response<List<CategoryModel>>
+                ) {
+                    isLoading.value = false
+                    categories.value = response.body() ?: emptyList()
                 }
 
-                override fun onCancelled(error: DatabaseError) {
-                    // Xử lý lỗi
+                override fun onFailure(call: Call<List<CategoryModel>>, t: Throwable) {
+                    isLoading.value = false
+                    errorMessage.value = t.message
                 }
             })
+    }
 
-        return result
+
+    // ------------------------- LOAD RECOMMENDED -------------------------
+    fun loadRecommended(userId: Long) {
+        isLoading.value = true
+        RetrofitClient.recommendApi.getRecommendedProducts(userId.toInt())
+            .enqueue(object : Callback<RecommendResponse> {
+                override fun onResponse(
+                    call: Call<RecommendResponse>,
+                    response: Response<RecommendResponse>
+                ) {
+                    isLoading.value = false
+
+                    val body = response.body()
+
+                    if (body != null && body.success) {
+                        val list = body.data?.map { ItemsModel(it) } ?: emptyList()
+                        recommended.value = list
+
+                        loadBannersFromRecommended(list)
+                    } else {
+                        recommended.value = emptyList()
+                        banners.value = emptyList()
+                    }
+                }
+
+                override fun onFailure(call: Call<RecommendResponse>, t: Throwable) {
+                    isLoading.value = false
+                    errorMessage.value = t.message
+                }
+            })
+    }
+
+
+    // ------------------------- LOAD FILTERED PRODUCTS -------------------------
+    fun loadFiltered(categoryId: String) {
+        val id = categoryId.toIntOrNull() ?: return
+
+        RetrofitClient.productsApi.getProductsByCategory(id)
+            .enqueue(object : Callback<ProductListResponse> {
+                override fun onResponse(
+                    call: Call<ProductListResponse>,
+                    response: Response<ProductListResponse>
+                ) {
+                    val list = response.body()?.data?.map { it.toItemModel() } ?: emptyList()
+                    recommended.value = list
+
+                    loadBannersFromRecommended(list)
+                }
+
+                override fun onFailure(call: Call<ProductListResponse>, t: Throwable) {
+                    errorMessage.value = t.message
+                }
+            })
+    }
+
+
+    // ------------------------- SEARCH PRODUCTS -------------------------
+    fun searchProducts(query: String) {
+        RetrofitClient.productsApi.searchProducts(query)
+            .enqueue(object : Callback<ProductListResponse> {
+                override fun onResponse(
+                    call: Call<ProductListResponse>,
+                    response: Response<ProductListResponse>
+                ) {
+                    val list = response.body()?.data?.map { it.toItemModel() } ?: emptyList()
+                    searchResults.value = list
+                }
+
+                override fun onFailure(call: Call<ProductListResponse>, t: Throwable) {
+                    errorMessage.value = t.message
+                }
+            })
+    }
+
+
+    // ------------------------- LOAD BANNERS (FROM RECOMMENDED) -------------------------
+    private fun loadBannersFromRecommended(list: List<ItemsModel>) {
+        if (list.isEmpty()) {
+            banners.value = emptyList()
+            return
+        }
+
+        val bannerList = list.mapNotNull { item ->
+            if (!item.picUrl.isNullOrEmpty()) {
+                SliderModel(item.picUrl.first())   // FIX: lấy ảnh đầu tiên
+            } else null
+        }
+
+        banners.value = bannerList
     }
 }

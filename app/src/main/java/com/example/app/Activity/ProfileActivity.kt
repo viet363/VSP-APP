@@ -13,6 +13,8 @@ import com.example.app.Helper.TinyDB
 import com.example.app.Network.RetrofitClient
 import com.example.app.Network.UserApi
 import com.example.app.databinding.ActivityProfileBinding
+import com.example.app.Model.UserModel
+import com.example.app.Model.UserData
 import com.example.app.databinding.DialogChangePasswordBinding
 import okhttp3.MediaType
 import okhttp3.MultipartBody
@@ -29,7 +31,7 @@ class ProfileActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityProfileBinding
     private lateinit var tinyDB: TinyDB
-    private val api = RetrofitClient.instance.create(UserApi::class.java)
+    private val api by lazy { RetrofitClient.userApi(this) }
     private var selectedImageUri: Uri? = null
 
     private val galleryLauncher = registerForActivityResult(
@@ -65,7 +67,7 @@ class ProfileActivity : AppCompatActivity() {
         }
 
         setupClickListeners()
-        loadProfile(userId)
+        loadProfile()
     }
 
     private fun setupClickListeners() {
@@ -121,36 +123,27 @@ class ProfileActivity : AppCompatActivity() {
         galleryLauncher.launch("image/*")
     }
 
-    private fun loadProfile(id: Long) {
+    private fun loadProfile() {
         showLoading()
-        api.getUserProfile(id).enqueue(object : Callback<com.example.app.Model.UserModel> {
-            override fun onResponse(
-                call: Call<com.example.app.Model.UserModel>,
-                response: Response<com.example.app.Model.UserModel>
-            ) {
+
+        api.getUserProfile().enqueue(object : Callback<UserModel> {
+            override fun onResponse(call: Call<UserModel>, response: Response<UserModel>) {
                 hideLoading()
-                if (response.isSuccessful && response.body() != null) {
-                    val user = response.body()!!
-                    displayUserData(user)
+                if (response.isSuccessful && response.body()?.success == true) {
+                    response.body()?.user?.let { displayUserData(it) }
                 } else {
-                    // Xử lý lỗi response
-                    val errorMessage = when (response.code()) {
-                        404 -> "Không tìm thấy thông tin người dùng"
-                        401 -> "Phiên đăng nhập hết hạn"
-                        else -> "Lỗi tải thông tin: ${response.code()}"
-                    }
-                    Toast.makeText(this@ProfileActivity, errorMessage, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@ProfileActivity, "Không tải được thông tin", Toast.LENGTH_SHORT).show()
                 }
             }
 
-            override fun onFailure(call: Call<com.example.app.Model.UserModel>, t: Throwable) {
+            override fun onFailure(call: Call<UserModel>, t: Throwable) {
                 hideLoading()
                 Toast.makeText(this@ProfileActivity, "Lỗi kết nối: ${t.message}", Toast.LENGTH_SHORT).show()
             }
         })
     }
 
-    private fun displayUserData(user: com.example.app.Model.UserModel) {
+    private fun displayUserData(user: UserData)    {
         binding.nameEditTxt.setText(user.fullname ?: "")
         binding.emailEditTxt.setText(user.email ?: "")
         binding.phoneEditTxt.setText(user.phone ?: "")
@@ -216,7 +209,7 @@ class ProfileActivity : AppCompatActivity() {
                 val emailPart = RequestBody.create(textMediaType, email)
                 val phonePart = RequestBody.create(textMediaType, phone)
 
-                api.updateUserWithAvatar(idPart, fullnamePart, emailPart, phonePart, avatarPart)
+                api.updateUserWithAvatar(fullnamePart, emailPart, phonePart, avatarPart)
                     .enqueue(object : Callback<com.example.app.Model.UserModel> {
                         override fun onResponse(
                             call: Call<com.example.app.Model.UserModel>,
@@ -226,11 +219,12 @@ class ProfileActivity : AppCompatActivity() {
                             if (response.isSuccessful && response.body() != null) {
                                 Toast.makeText(this@ProfileActivity, "Cập nhật thành công!", Toast.LENGTH_SHORT).show()
                                 // Cập nhật local data
-                                response.body()?.let { user ->
-                                    tinyDB.putString("fullname", user.fullname ?: "")
-                                    tinyDB.putString("email", user.email ?: "")
-                                    tinyDB.putString("avatar", user.avatar ?: "")
+                                response.body()?.user?.let { data ->
+                                    tinyDB.putString("fullname", data.fullname ?: "")
+                                    tinyDB.putString("email", data.email ?: "")
+                                    tinyDB.putString("avatar", data.avatar ?: "")
                                 }
+
                             } else {
                                 val errorMessage = when (response.code()) {
                                     400 -> "Dữ liệu không hợp lệ"
@@ -273,9 +267,9 @@ class ProfileActivity : AppCompatActivity() {
                 if (response.isSuccessful && response.body() != null) {
                     Toast.makeText(this@ProfileActivity, "Cập nhật thành công!", Toast.LENGTH_SHORT).show()
                     // Cập nhật local data
-                    response.body()?.let { user ->
-                        tinyDB.putString("fullname", user.fullname ?: "")
-                        tinyDB.putString("email", user.email ?: "")
+                    response.body()?.user?.let { data ->
+                        tinyDB.putString("fullname", data.fullname ?: "")
+                        tinyDB.putString("email", data.email ?: "")
                     }
                 } else {
                     val errorMessage = when (response.code()) {

@@ -1,7 +1,6 @@
 package com.example.app.Activity
 
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -10,8 +9,6 @@ import com.example.app.Adapter.CommentAdapter
 import com.example.app.Adapter.PicAdapter
 import com.example.app.Adapter.SpecificationAdapter
 import com.example.app.Model.ItemsModel
-import com.example.app.Model.ProductReviewModel
-import com.example.app.Model.ProductSpecificationModel
 import com.example.app.databinding.ActivityDetailBinding
 import com.example.app.ViewModel.MainViewModel
 
@@ -58,7 +55,7 @@ class DetailActivity : AppCompatActivity() {
 
         // Chi tiết sản phẩm
         viewModel.productDetail.observe(this) { detail ->
-            binding.derscriptionTxt.text = detail.Description ?: "Không có mô tả"
+            binding.derscriptionTxt.text = detail?.description ?: "Không có mô tả"
         }
 
         // Thông số kỹ thuật

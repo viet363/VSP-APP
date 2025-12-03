@@ -8,22 +8,21 @@ import retrofit2.http.*
 
 interface UserApi {
 
-    @GET("mobile/user/profile/{id}")
-    fun getUserProfile(@Path("id") id: Long): Call<UserModel>
+    @GET("user/profile")
+    fun getUserProfile(): Call<UserModel>
 
-    @PUT("mobile/user/profile")
+    @PUT("user/profile")
     fun updateUser(@Body body: HashMap<String, Any>): Call<UserModel>
 
     @Multipart
-    @POST("mobile/user/profile/avatar")
+    @POST("user/profile/avatar")
     fun updateUserWithAvatar(
-        @Part("id") id: RequestBody,
         @Part("fullname") fullname: RequestBody,
         @Part("email") email: RequestBody,
         @Part("phone") phone: RequestBody,
         @Part avatar: MultipartBody.Part
     ): Call<UserModel>
 
-    @PUT("mobile/user/password")
+    @PUT("user/password")
     fun changePassword(@Body body: HashMap<String, String>): Call<UserModel>
 }

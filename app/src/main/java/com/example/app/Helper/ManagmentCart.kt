@@ -1,57 +1,168 @@
-package com.example.project1762.Helper
+package com.example.app.Helper
 
 import android.content.Context
-import com.example.app.Helper.TinyDB
-import com.example.app.Model.ItemsModel
+import com.example.app.Model.*
+import com.example.app.Network.RetrofitClient
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
 
-class ManagmentCart(context: Context) {
+class ManagmentCart(private val context: Context) {
 
     private val tinyDB = TinyDB(context)
+    private val cartKey = "CART_LIST"
+    private val gson = Gson()
 
-    fun insertItem(item: ItemsModel) {
-        val list = getListCart()
-        val index = list.indexOfFirst { it.id == item.id }
-
-        if (index >= 0) {
-            list[index].numberInCart += item.numberInCart
+    // Lấy danh sách CartItemModel từ TinyDB
+    fun getLocalCart(): ArrayList<CartItemModel> {
+        val json = tinyDB.getString(cartKey)
+        return if (json.isNotEmpty()) {
+            try {
+                val type = object : TypeToken<ArrayList<CartItemModel>>() {}.type
+                gson.fromJson(json, type) ?: arrayListOf()
+            } catch (e: Exception) {
+                e.printStackTrace()
+                arrayListOf()
+            }
         } else {
-            list.add(item)
+            arrayListOf()
+        }
+    }
+
+    // Lưu danh sách CartItemModel vào TinyDB
+    fun saveLocalCart(list: ArrayList<CartItemModel>) {
+        val json = gson.toJson(list)
+        tinyDB.putString(cartKey, json)
+    }
+
+    // Lấy danh sách ItemsModel (nếu cần tương thích với code cũ)
+    fun getLocalItems(): ArrayList<ItemsModel> {
+        val cartItems = getLocalCart()
+        return ArrayList(cartItems.map { it.item })
+    }
+
+    /**
+     * ĐỒNG BỘ TỪ SERVER VỀ LOCAL (TinyDB)
+     */
+    fun syncFromServer(serverItems: List<CartServerItem>) {
+        val list = ArrayList<CartItemModel>()
+
+        serverItems.forEach { s ->
+            val item = ItemsModel(
+                id = s.productId.toInt(),
+                title = s.productName,
+                description = "",
+                price = s.price,
+                picUrl = if (s.image != null) listOf(s.image) else emptyList(),
+                rating = 0.0
+            )
+
+            list.add(
+                CartItemModel(
+                    cartDetailId = s.id,
+                    item = item,
+                    quantity = s.quantity
+                )
+            )
         }
 
-        tinyDB.putListObject("CartList", list)
-    }
-
-    fun getListCart(): ArrayList<ItemsModel> {
-        return tinyDB.getListObject("CartList")
-    }
-
-    fun setCartList(list: ArrayList<ItemsModel>) {
-        tinyDB.putListObject("CartList", list)
-    }
-
-    fun plusItem(list: ArrayList<ItemsModel>, position: Int, listener: ChangeNumberItemsListener) {
-        list[position].numberInCart++
-        setCartList(list)
-        listener.onChanged()
-    }
-
-    fun minusItem(list: ArrayList<ItemsModel>, position: Int, listener: ChangeNumberItemsListener) {
-        if (list[position].numberInCart > 1) {
-            list[position].numberInCart--
-        } else {
-            list.removeAt(position)
-        }
-        setCartList(list)
-        listener.onChanged()
-    }
-
-    fun deleteItem(list: ArrayList<ItemsModel>, position: Int, listener: ChangeNumberItemsListener) {
-        list.removeAt(position)
-        setCartList(list)
-        listener.onChanged()
+        saveLocalCart(list)
     }
 
     fun getTotalFee(): Double {
-        return getListCart().sumOf { it.price * it.numberInCart }
+        val list = getLocalCart()
+        return list.sumOf { it.item.price * it.quantity }
+    }
+
+    // Thêm item vào cart local
+    fun addToLocal(item: ItemsModel, quantity: Int = 1) {
+        val list = getLocalCart()
+        val existingIndex = list.indexOfFirst { it.item.id == item.id }
+
+        if (existingIndex >= 0) {
+            list[existingIndex].quantity += quantity
+        } else {
+            list.add(CartItemModel(
+                cartDetailId = 0L, // 0 cho local items
+                item = item,
+                quantity = quantity
+            ))
+        }
+
+        saveLocalCart(list)
+    }
+
+    fun updateLocalQuantity(itemId: Int, quantity: Int) {
+        val list = getLocalCart()
+        val index = list.indexOfFirst { it.item.id == itemId }
+
+        if (index >= 0) {
+            list[index].quantity = quantity
+            saveLocalCart(list)
+        }
+    }
+
+    fun removeFromLocal(itemId: Int) {
+        val list = getLocalCart()
+        val index = list.indexOfFirst { it.item.id == itemId }
+
+        if (index >= 0) {
+            list.removeAt(index)
+            saveLocalCart(list)
+        }
+    }
+
+    fun clearLocalCart() {
+        tinyDB.remove(cartKey)
+    }
+
+    fun getCartCount(): Int {
+        return getLocalCart().sumOf { it.quantity }
+    }
+
+    // Các phương thức server giữ nguyên
+    fun addToCartServer(productId: Long, quantity: Int, callback: () -> Unit) {
+        val body = hashMapOf<String, Any>(
+            "productId" to productId,
+            "quantity" to quantity
+        )
+
+        RetrofitClient.cartApi.addToCart(body)
+            .enqueue(object : Callback<Map<String, Any>> {
+                override fun onResponse(
+                    call: Call<Map<String, Any>>,
+                    response: Response<Map<String, Any>>
+                ) { callback() }
+
+                override fun onFailure(call: Call<Map<String, Any>>, t: Throwable) {}
+            })
+    }
+
+    fun updateQuantityServer(cartDetailId: Long, quantity: Int, callback: () -> Unit) {
+        val body = hashMapOf<String, Any>("quantity" to quantity)
+
+        RetrofitClient.cartApi.updateCart(cartDetailId, body)
+            .enqueue(object : Callback<Map<String, Any>> {
+                override fun onResponse(
+                    call: Call<Map<String, Any>>,
+                    response: Response<Map<String, Any>>
+                ) { callback() }
+
+                override fun onFailure(call: Call<Map<String, Any>>, t: Throwable) {}
+            })
+    }
+
+    fun deleteFromServer(cartDetailId: Long, callback: () -> Unit) {
+        RetrofitClient.cartApi.deleteCartItem(cartDetailId)
+            .enqueue(object : Callback<Map<String, Boolean>> {
+                override fun onResponse(
+                    call: Call<Map<String, Boolean>>,
+                    response: Response<Map<String, Boolean>>
+                ) { callback() }
+
+                override fun onFailure(call: Call<Map<String, Boolean>>, t: Throwable) {}
+            })
     }
 }
