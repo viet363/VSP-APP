@@ -1,9 +1,25 @@
 package com.example.app.Model
 
+import com.google.gson.annotations.SerializedName
+
+data class CategoryResponse(
+    val success: Boolean,
+    val data: List<CategoryModel>
+)
+
 data class CategoryModel(
-    val id: Long,
-    val name: String,                 
-    val image_url: String?,
-    val created_at: String? = null,
-    val updated_at: String? = null
+    @SerializedName("Id")
+    val id: Int,
+
+    @SerializedName("Category_name")
+    val name: String,
+
+    @SerializedName("picUrl")
+    val imageUrl: String?,
+
+    @SerializedName("Create_at")
+    val createdAt: String? = null,
+
+    @SerializedName("Update_at")
+    val updatedAt: String? = null
 )

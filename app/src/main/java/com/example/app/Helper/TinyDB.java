@@ -10,8 +10,6 @@ import android.preference.PreferenceManager;
 import android.text.TextUtils;
 import android.util.Log;
 
-
-
 import com.google.gson.Gson;
 import com.example.app.Model.ItemsModel;
 
@@ -21,8 +19,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Map;
-
-
 
 public class TinyDB {
 
@@ -67,7 +63,6 @@ public class TinyDB {
             bitmapFromPath = BitmapFactory.decodeFile(path);
 
         } catch (Exception e) {
-            // TODO: handle exception
             e.printStackTrace();
         }
 
@@ -116,7 +111,6 @@ public class TinyDB {
     public boolean putImageWithFullPath(String fullPath, Bitmap theBitmap) {
         return !(fullPath == null || theBitmap == null) && saveBitmap(fullPath, theBitmap);
     }
-
 
     // Getters
 
@@ -222,12 +216,53 @@ public class TinyDB {
 
     /**
      * Get long value from SharedPreferences at 'key'. If key not found, return 0
+     * FIXED: Safe method to avoid ClassCastException
      *
      * @param key SharedPreferences key
      * @return long value at 'key' or 0 if key not found
      */
     public long getLong(String key) {
-        return preferences.getLong(key, 0);
+        return getLong(key, 0L);
+    }
+
+    /**
+     * Get long value from SharedPreferences at 'key' with fallback to defaultValue
+     * FIXED: Safe method to avoid ClassCastException
+     *
+     * @param key          SharedPreferences key
+     * @param defaultValue default value if key not found or cast exception
+     * @return long value at 'key' or defaultValue
+     */
+    public long getLong(String key, long defaultValue) {
+        try {
+            // Thử lấy giá trị dưới dạng Long
+            return preferences.getLong(key, defaultValue);
+        } catch (ClassCastException e) {
+            Log.e("TinyDB", "ClassCastException for getLong key: " + key + " - " + e.getMessage());
+
+            // Thử lấy giá trị dưới dạng String và convert sang Long
+            try {
+                String stringValue = preferences.getString(key, String.valueOf(defaultValue));
+                if (stringValue != null && !stringValue.isEmpty()) {
+                    return Long.parseLong(stringValue);
+                }
+            } catch (Exception e2) {
+                Log.e("TinyDB", "Cannot convert String to Long for key: " + key, e2);
+            }
+
+            // Thử lấy giá trị dưới dạng Integer
+            try {
+                int intValue = preferences.getInt(key, (int) defaultValue);
+                return intValue;
+            } catch (Exception e3) {
+                Log.e("TinyDB", "Cannot convert Int to Long for key: " + key, e3);
+            }
+
+            return defaultValue;
+        } catch (Exception e) {
+            Log.e("TinyDB", "Error getting long for key: " + key, e);
+            return defaultValue;
+        }
     }
 
     /**
@@ -298,7 +333,51 @@ public class TinyDB {
      * @return String value at 'key' or "" (empty String) if key not found
      */
     public String getString(String key) {
-        return preferences.getString(key, "");
+        return getString(key, "");
+    }
+
+    /**
+     * Get String value from SharedPreferences at 'key' with fallback to defaultValue
+     * FIXED: Safe method to avoid ClassCastException
+     *
+     * @param key          SharedPreferences key
+     * @param defaultValue default value if key not found or cast exception
+     * @return String value at 'key' or defaultValue
+     */
+    public String getString(String key, String defaultValue) {
+        try {
+            // Thử lấy giá trị dưới dạng String
+            String value = preferences.getString(key, defaultValue);
+            if (value != null) {
+                return value;
+            }
+        } catch (ClassCastException e) {
+            Log.e("TinyDB", "ClassCastException for getString key: " + key + " - " + e.getMessage());
+
+            // Thử lấy giá trị dưới dạng Long và convert sang String
+            try {
+                long longValue = preferences.getLong(key, 0L);
+                if (longValue != 0L) {
+                    return String.valueOf(longValue);
+                }
+            } catch (Exception e2) {
+                Log.e("TinyDB", "Cannot convert Long to String for key: " + key, e2);
+            }
+
+            // Thử lấy giá trị dưới dạng Integer
+            try {
+                int intValue = preferences.getInt(key, 0);
+                if (intValue != 0) {
+                    return String.valueOf(intValue);
+                }
+            } catch (Exception e3) {
+                Log.e("TinyDB", "Cannot convert Int to String for key: " + key, e3);
+            }
+        } catch (Exception e) {
+            Log.e("TinyDB", "Error getting string for key: " + key, e);
+        }
+
+        return defaultValue;
     }
 
     /**
@@ -342,7 +421,6 @@ public class TinyDB {
         return newList;
     }
 
-
     // Put methods
 
     public ArrayList<ItemsModel> getListObject(String key) {
@@ -359,12 +437,17 @@ public class TinyDB {
     }
 
     public <T> T getObject(String key, Class<T> classOfT) {
-
         String json = getString(key);
-        Object value = new Gson().fromJson(json, classOfT);
-        if (value == null)
-            throw new NullPointerException();
-        return (T) value;
+        if (json == null || json.isEmpty()) {
+            return null;
+        }
+
+        try {
+            return new Gson().fromJson(json, classOfT);
+        } catch (Exception e) {
+            Log.e("TinyDB", "Error parsing object for key: " + key, e);
+            return null;
+        }
     }
 
     /**
@@ -436,7 +519,7 @@ public class TinyDB {
     }
 
     /**
-     * Put ArrayList of Double into SharedPreferences with 'key' and save
+     * Put ArrayList of Double into SharedPreferences with 'key' và save
      *
      * @param key        SharedPreferences key
      * @param doubleList ArrayList of Double to be added
@@ -504,7 +587,7 @@ public class TinyDB {
     }
 
     /**
-     * Put ObJect any type into SharedPrefrences with 'key' and save
+     * Put Object any type into SharedPreferences with 'key' and save
      *
      * @param key SharedPreferences key
      * @param obj is the Object you want to put
@@ -558,6 +641,16 @@ public class TinyDB {
      */
     public Map<String, ?> getAll() {
         return preferences.getAll();
+    }
+
+    /**
+     * Check if key exists in SharedPreferences
+     *
+     * @param key SharedPreferences key
+     * @return true if key exists, false otherwise
+     */
+    public boolean contains(String key) {
+        return preferences.contains(key);
     }
 
     /**

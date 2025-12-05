@@ -2,6 +2,7 @@ package com.example.app.Activity
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.widget.Toast
 import androidx.activity.viewModels
@@ -23,35 +24,38 @@ class MainActivity : BaseActivity() {
     private lateinit var tinyDB: TinyDB
     private val viewModel: MainViewModel by viewModels()
 
-    // FIX lỗi userId không tồn tại trong hàm khác
-    private var userId: String = ""
+    private val TAG = "MainActivity"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        Log.d(TAG, "MainActivity started")
+
         tinyDB = TinyDB(this)
 
-        userId = tinyDB.getString("userId") ?: ""
+        val userId = tinyDB.getString("userId", "")
 
         if (userId.isEmpty()) {
+            Log.w(TAG, "User ID is empty or not found, redirecting to LoginActivity")
             startActivity(Intent(this, LoginActivity::class.java))
             finish()
             return
         }
 
-        binding.nametitle.text =
-            tinyDB.getString("profile_name") ?: "Khách hàng thân mến"
+        Log.d(TAG, "User ID found: $userId")
+
+        val profileName = tinyDB.getString("profile_name", "Khách hàng thân mến")
+        binding.nametitle.text = profileName
 
         initBanner()
         initCategory()
-        initRecommended()
+        initRecommended(userId)
         initBottomMenu()
         initSearch()
     }
 
-    // ------------------------- SEARCH -------------------------
     private fun initSearch() {
         binding.btnSearch.setOnClickListener {
             binding.btnSearch.visibility = View.GONE
@@ -69,10 +73,9 @@ class MainActivity : BaseActivity() {
                 viewModel.searchProducts(query)
 
                 viewModel.searchResults.observe(this) { results ->
-                    // Xử lý kết quả tìm kiếm nếu cần
+                    Log.d(TAG, "Search results: ${results.size} items")
                 }
 
-                // CHỈ GỬI query – KHÔNG gửi Parcelable
                 val intent = Intent(this, ListItemsActivity::class.java)
                 intent.putExtra("searchQuery", query)
                 startActivity(intent)
@@ -85,20 +88,34 @@ class MainActivity : BaseActivity() {
         }
     }
 
-    private fun initRecommended() {
+    private fun initRecommended(userId: String) {
         binding.progressBarRecommend.visibility = View.VISIBLE
         binding.viewRecommendation.layoutManager = GridLayoutManager(this, 2)
 
         viewModel.recommended.observe(this) { items ->
             binding.progressBarRecommend.visibility = View.GONE
             if (items.isNotEmpty()) {
-                binding.viewRecommendation.adapter =
-                    RecommendedAdapter(items.toMutableList())
+                Log.d(TAG, "Recommended items loaded: ${items.size} items")
+                binding.viewRecommendation.adapter = RecommendedAdapter(items.toMutableList())
+            } else {
+                Log.d(TAG, "No recommended items found")
+                Toast.makeText(this, "Không có sản phẩm đề xuất", Toast.LENGTH_SHORT).show()
             }
         }
 
-        val userIdLong = userId.toLongOrNull() ?: 0L
-        viewModel.loadRecommended(userIdLong)
+        val userIdLong = try {
+            userId.toLong()
+        } catch (e: NumberFormatException) {
+            Log.e(TAG, "Invalid user ID format: $userId", e)
+            0L
+        }
+
+        if (userIdLong > 0L) {
+            viewModel.loadRecommended(userIdLong)
+        } else {
+            binding.progressBarRecommend.visibility = View.GONE
+            Toast.makeText(this, "Lỗi: ID người dùng không hợp lệ", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun initCategory() {
@@ -111,6 +128,7 @@ class MainActivity : BaseActivity() {
             binding.progressBarCategory.visibility = View.GONE
 
             if (list.isEmpty()) {
+                Log.w(TAG, "No categories found, using default categories")
                 binding.viewCategory.adapter = CategoryAdapter(
                     mutableListOf(
                         CategoryModel(1, "Electronic", "cat1.png"),
@@ -118,6 +136,7 @@ class MainActivity : BaseActivity() {
                     )
                 )
             } else {
+                Log.d(TAG, "Categories loaded: ${list.size} items")
                 binding.viewCategory.adapter = CategoryAdapter(list.toMutableList())
             }
         }
@@ -128,25 +147,20 @@ class MainActivity : BaseActivity() {
     private fun initBanner() {
         binding.progressBarSlider.visibility = View.VISIBLE
 
-        // Sửa lỗi: Thay 'banners' bằng 'recommended' hoặc tạo LiveData riêng cho banner
-        // Tạm thời tạo banner giả
         val fakeBanners = listOf(
             SliderModel("banner1.png"),
             SliderModel("banner2.png")
         )
         showBanner(fakeBanners)
-
-        // Nếu có API banner thì sử dụng:
-        // viewModel.banners.observe(this) { bannerList ->
-        //     val list = if (bannerList.isEmpty()) {
-        //         fakeBanners
-        //     } else bannerList
-        //     showBanner(list)
-        // }
     }
 
     private fun showBanner(images: List<SliderModel>) {
         binding.progressBarSlider.visibility = View.GONE
+
+        if (images.isEmpty()) {
+            Log.w(TAG, "No banner images to show")
+            return
+        }
 
         val adapter = SliderAdapter(images, binding.viewPager2)
         binding.viewPager2.adapter = adapter
@@ -154,11 +168,12 @@ class MainActivity : BaseActivity() {
         binding.viewPager2.clipChildren = false
         binding.viewPager2.offscreenPageLimit = 3
 
-        // Kiểm tra null trước khi truy cập
         val child = binding.viewPager2.getChildAt(0)
         if (child != null) {
             child.overScrollMode = RecyclerView.OVER_SCROLL_NEVER
         }
+
+        Log.d(TAG, "Banner loaded with ${images.size} images")
     }
 
     private fun initBottomMenu() {
@@ -174,5 +189,15 @@ class MainActivity : BaseActivity() {
         binding.chatBtn.setOnClickListener {
             startActivity(Intent(this, MyChatActivity::class.java))
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        Log.d(TAG, "MainActivity resumed")
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        Log.d(TAG, "MainActivity destroyed")
     }
 }

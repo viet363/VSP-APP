@@ -1,13 +1,15 @@
 <resources>
-    <string name="app_name">Home appliances shopping</string>
-
+    <string name="app_name">VPS shopping</string>
+    <string name="default_web_client_id">
+    538712076460-vhocm7aajmm3tk83m030f4ujphau713g.apps.googleusercontent.com
+</string>
+    <string name="base_url">http://192.168.3.84:4000/api/</string>
     <string name="action_settings">Settings</string>
-    <!-- Strings used for fragments for navigation -->
     <string name="first_fragment_label">First Fragment</string>
     <string name="second_fragment_label">Second Fragment</string>
     <string name="next">Next</string>
     <string name="previous">Previous</string>
-    <string name="intro_title">Chào mừng đến với <font color="#39c7a5"> HT Store </font>\n nơi có những sản phẩm công nghệ bạn cần</string>
+    <string name="intro_title">Chào mừng đến với <font color="#39c7a5"> VPS Store </font>\n nơi có những sản phẩm công nghệ bạn cần</string>
     <string name="intro_sub_title" translatable="false"> Đăng nhập để khám phá nhiều sản phẩm kỹ thuật số tiên tiến \n
         digital products Bạn chưa có tài khoản? \n
         Đăng ký ngay và tận hưởng trải nghiệm mua sắm liền mạch \n
@@ -29,7 +31,6 @@
     <string name="n_p_ti_n_v_o_donate_cho_tao_t_5_qu_tr_ng_nhi_u_1_t_n_l_a">Thanh toán khi nhận hàng</string>
     <string name="nh_ng_ai_y_u_anh_anh_kh_ng_th_c_n_c">Thanh toán qua các app ngân hàng</string>
     <string name="danh_m_c">Danh mục</string>
-
     <string name="search_hint">Tìm kiếm sản phẩm...</string>
     <string name="no_results">Không tìm thấy kết quả</string>
     <string name="min_characters">Vui lòng nhập ít nhất 2 ký tự</string>

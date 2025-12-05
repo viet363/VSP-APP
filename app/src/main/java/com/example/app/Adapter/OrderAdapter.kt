@@ -20,7 +20,7 @@ class OrderAdapter(private val orders: List<OrderModel>) : RecyclerView.Adapter<
         val itemsRecyclerView: RecyclerView = itemView.findViewById(R.id.itemsRecyclerView)
         val totalTxt: TextView = itemView.findViewById(R.id.totalTxt)
         val statusTxt: TextView = itemView.findViewById(R.id.statusTxt)
-        val addressTxt: TextView = itemView.findViewById(R.id.addressTxt) // ĐÃ THÊM
+        val addressTxt: TextView = itemView.findViewById(R.id.addressTxt)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): OrderViewHolder {
@@ -31,10 +31,9 @@ class OrderAdapter(private val orders: List<OrderModel>) : RecyclerView.Adapter<
     override fun onBindViewHolder(holder: OrderViewHolder, position: Int) {
         val order = orders[position]
 
-        // Format date
-        val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
-        val date = dateFormat.format(order.orderDate)
-        holder.dateTxt.text = "Ngày đặt: $date"
+        // Format date - BE trả về String, không phải Date
+        val orderDate = order.Order_date
+        holder.dateTxt.text = "Ngày đặt: $orderDate"
 
         // Format total
         val formatter = java.text.NumberFormat.getNumberInstance(Locale("vi", "VN"))
@@ -42,9 +41,9 @@ class OrderAdapter(private val orders: List<OrderModel>) : RecyclerView.Adapter<
         formatter.maximumFractionDigits = 0
         holder.totalTxt.text = "Tổng: ${formatter.format(order.total)}$"
 
-        // Status and address
-        holder.statusTxt.text = "Trạng thái: ${getStatusText(order.orderStatus)}"
-        holder.addressTxt.text = "Địa chỉ: ${order.shipAddress}"
+        // Status and address - sửa tên field
+        holder.statusTxt.text = "Trạng thái: ${getStatusText(order.Order_status)}"
+        holder.addressTxt.text = "Địa chỉ: ${order.Ship_address}"
 
         // Hiển thị danh sách sản phẩm
         holder.itemsRecyclerView.layoutManager = LinearLayoutManager(holder.itemView.context, LinearLayoutManager.VERTICAL, false)
@@ -82,16 +81,17 @@ class OrderItemAdapter(private val items: List<com.example.app.Model.OrderItemMo
 
     override fun onBindViewHolder(holder: OrderItemViewHolder, position: Int) {
         val item = items[position]
-        holder.titleTxt.text = item.productName ?: "Sản phẩm"
+        // Sửa tên field từ model mới
+        holder.titleTxt.text = item.Product_name ?: "Sản phẩm"
 
         val formatter = java.text.NumberFormat.getNumberInstance(Locale("vi", "VN"))
         formatter.minimumFractionDigits = 0
         formatter.maximumFractionDigits = 0
-        holder.priceTxt.text = "Giá: ${formatter.format(item.unitPrice)}$"
-        holder.quantityTxt.text = "Số lượng: ${item.quantity}"
+        holder.priceTxt.text = "Giá: ${formatter.format(item.Unit_price)}$"
+        holder.quantityTxt.text = "Số lượng: ${item.Quantity}"
 
-        // Load image
-        item.productImage?.let { imageUrl ->
+        // Load image - sửa tên field
+        item.picUrl?.let { imageUrl ->
             Glide.with(holder.itemView.context)
                 .load(imageUrl)
                 .placeholder(R.drawable.placeholder)

@@ -36,16 +36,13 @@ class CategoryAdapter(private val items: MutableList<CategoryModel>) :
     override fun onBindViewHolder(holder: Viewholder, position: Int) {
         val item = items[position]
 
-        // ✔ tên danh mục đúng theo BE
         holder.binding.titleTxt.text = item.name
 
-        // ✔ ảnh đúng theo BE
         Glide.with(holder.itemView.context)
-            .load(item.image_url)
+            .load(item.imageUrl)
             .placeholder(R.drawable.placeholder)
             .into(holder.binding.pic)
 
-        // UI chọn
         if (selectedPosition == position) {
             holder.binding.pic.setBackgroundResource(0)
             holder.binding.mainLayout.setBackgroundResource(R.drawable.green_button_bg)
@@ -78,7 +75,6 @@ class CategoryAdapter(private val items: MutableList<CategoryModel>) :
             )
         }
 
-        // ✔ click chuyển category
         holder.binding.root.setOnClickListener {
             if (holder.bindingAdapterPosition == RecyclerView.NO_POSITION) return@setOnClickListener
 

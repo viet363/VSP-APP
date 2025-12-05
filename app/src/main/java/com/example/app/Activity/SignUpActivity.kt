@@ -5,6 +5,8 @@ import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.example.app.Model.UserData
+import com.example.app.Model.UserResponse
 import com.example.app.Network.AuthApi
 import com.example.app.Network.RetrofitClient
 import com.example.app.databinding.ActivitySignUpBinding
@@ -20,12 +22,9 @@ import javax.net.ssl.SSLHandshakeException
 class SignUpActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivitySignUpBinding
-    private val api by lazy { RetrofitClient.authApi(this) }
+    private lateinit var api: AuthApi
 
-    // Biến để kiểm tra activity có đang chạy không
     private var isActivityRunning = true
-
-    // Sử dụng constant cho tag (cách này tốt hơn)
     private val TAG = "SIGN_UP_ACTIVITY"
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -33,8 +32,17 @@ class SignUpActivity : AppCompatActivity() {
         binding = ActivitySignUpBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Log khi activity khởi tạo
-        Log.d(TAG, "SignUpActivity created")
+        Log.d(TAG, "=== SIGN UP ACTIVITY STARTED ===")
+
+        // Khởi tạo Retrofit
+        try {
+            RetrofitClient.init(this)  // Thêm dòng này nếu chưa có
+            api = RetrofitClient.authApi()
+            Log.d(TAG, "Retrofit API initialized successfully")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to initialize Retrofit", e)
+            showToastSafe("Không thể khởi tạo kết nối. Vui lòng thử lại.")
+        }
 
         binding.btnSignUp.setOnClickListener {
             Log.d(TAG, "Sign up button clicked")
@@ -45,28 +53,32 @@ class SignUpActivity : AppCompatActivity() {
             val confirmPass = binding.edtConfirmPassword.text.toString().trim()
             val fullname = binding.edtFullname.text.toString().trim()
 
-            // Kiểm tra dữ liệu đầu vào
-            if (username.isEmpty() || email.isEmpty() || pass.isEmpty() || confirmPass.isEmpty()) {
-                Log.w(TAG, "Validation failed: Empty fields")
-                showToast("Vui lòng nhập đầy đủ thông tin")
+            if (username.isEmpty()) {
+                showToastSafe("Vui lòng nhập tên đăng nhập")
                 return@setOnClickListener
             }
-
+            if (email.isEmpty()) {
+                showToastSafe("Vui lòng nhập email")
+                return@setOnClickListener
+            }
+            if (pass.isEmpty()) {
+                showToastSafe("Vui lòng nhập mật khẩu")
+                return@setOnClickListener
+            }
+            if (confirmPass.isEmpty()) {
+                showToastSafe("Vui lòng nhập xác nhận mật khẩu")
+                return@setOnClickListener
+            }
             if (pass != confirmPass) {
-                Log.w(TAG, "Validation failed: Password mismatch")
-                showToast("Mật khẩu xác nhận không khớp")
+                showToastSafe("Mật khẩu xác nhận không khớp")
                 return@setOnClickListener
             }
-
             if (pass.length < 6) {
-                Log.w(TAG, "Validation failed: Password too short")
-                showToast("Mật khẩu phải có ít nhất 6 ký tự")
+                showToastSafe("Mật khẩu phải có ít nhất 6 ký tự")
                 return@setOnClickListener
             }
-
             if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-                Log.w(TAG, "Validation failed: Invalid email")
-                showToast("Email không hợp lệ")
+                showToastSafe("Email không hợp lệ")
                 return@setOnClickListener
             }
 
@@ -77,149 +89,101 @@ class SignUpActivity : AppCompatActivity() {
                 "fullname" to if (fullname.isNotEmpty()) fullname else username
             )
 
-            // Log request
-            Log.d(TAG, "=== SENDING REGISTER REQUEST ===")
-            Log.d(TAG, "Request body: $body")
-            Log.d(TAG, "API endpoint: register")
-
-            // Ẩn bàn phím trước khi gửi request
+            // Ẩn bàn phím
             hideKeyboard()
 
-            api.register(body).enqueue(object : Callback<com.example.app.Model.UserModel> {
+            if (!this::api.isInitialized) {
+                showToastSafe("Lỗi kết nối. Vui lòng thử lại.")
+                return@setOnClickListener
+            }
+
+            // Loading state
+            binding.btnSignUp.isEnabled = false
+            binding.btnSignUp.text = "Đang xử lý..."
+
+            Log.d(TAG, "Sending signup request for username: $username, email: $email")
+
+            api.register(body).enqueue(object : Callback<UserResponse> {  // Sửa: UserResponse
                 override fun onResponse(
-                    call: Call<com.example.app.Model.UserModel>,
-                    response: Response<com.example.app.Model.UserModel>
+                    call: Call<UserResponse>,
+                    response: Response<UserResponse>
                 ) {
-                    // Log response
-                    Log.d(TAG, "=== RECEIVED RESPONSE ===")
+                    binding.btnSignUp.isEnabled = true
+                    binding.btnSignUp.text = "Đăng ký"
+
+                    Log.d(TAG, "=== RESPONSE RECEIVED ===")
+                    Log.d(TAG, "Request URL: ${call.request().url}")
                     Log.d(TAG, "Response code: ${response.code()}")
-                    Log.d(TAG, "Response isSuccessful: ${response.isSuccessful}")
-                    Log.d(TAG, "Response has body: ${response.body() != null}")
 
-                    if (response.isSuccessful && response.body() != null) {
-                        Log.i(TAG, "✅ ĐĂNG KÝ THÀNH CÔNG")
-                        Log.i(TAG, "User data: ${response.body()}")
-                        showToast("Đăng ký thành công!")
+                    if (response.isSuccessful) {
+                        val userResponse = response.body()
+                        if (userResponse?.success == true && userResponse.user != null) {
+                            val user = userResponse.user
+                            showToastSafe("Đăng ký thành công!")
 
-                        // Chuyển sang LoginActivity sau khi đăng ký thành công
-                        runOnUiThread {
-                            if (isActivityRunning) {
-                                Log.d(TAG, "Navigating to LoginActivity")
-                                startActivity(Intent(this@SignUpActivity, LoginActivity::class.java))
-                                finish()
-                            }
+                            saveUserData(user)
+
+                            startActivity(Intent(this@SignUpActivity, LoginActivity::class.java))
+                            finish()
+                        } else {
+                            val errorMessage = userResponse?.let {
+                                if (!it.success) "Đăng ký thất bại"
+                                else "Không nhận được thông tin user"
+                            } ?: "Đăng ký thất bại"
+                            showToastSafe(errorMessage)
                         }
                     } else {
-                        Log.e(TAG, "❌ ĐĂNG KÝ THẤT BẠI")
-                        Log.e(TAG, "Error code: ${response.code()}")
-
-                        // Lấy thông báo lỗi từ response
                         val errorMessage = try {
                             val errorBody = response.errorBody()?.string()
-                            Log.e(TAG, "Raw error body: $errorBody")
-
-                            if (errorBody != null && errorBody.isNotEmpty()) {
-                                try {
-                                    val jsonObject = JSONObject(errorBody)
-                                    val message = if (jsonObject.has("message")) {
-                                        jsonObject.getString("message")
-                                    } else if (jsonObject.has("error")) {
-                                        jsonObject.getString("error")
-                                    } else {
-                                        "Đăng ký thất bại! (Mã lỗi: ${response.code()})"
-                                    }
-                                    Log.e(TAG, "Parsed error message: $message")
-                                    message
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "JSON parse error: ${e.message}")
-                                    "Đăng ký thất bại! (Mã lỗi: ${response.code()})"
-                                }
-                            } else {
-                                Log.e(TAG, "Empty error body")
-                                "Đăng ký thất bại! (Mã lỗi: ${response.code()})"
-                            }
+                            val json = JSONObject(errorBody ?: "")
+                            json.optString("message", "Đăng ký thất bại (Code: ${response.code()})")
                         } catch (e: Exception) {
-                            Log.e(TAG, "Error reading error body: ${e.message}")
-                            "Đăng ký thất bại! (Mã lỗi: ${response.code()})"
+                            "Đăng ký thất bại (Code: ${response.code()})"
                         }
-
-                        showToast(errorMessage)
+                        showToastSafe(errorMessage)
                     }
                 }
 
-                override fun onFailure(call: Call<com.example.app.Model.UserModel>, t: Throwable) {
-                    Log.e(TAG, "=== NETWORK FAILURE ===")
-                    Log.e(TAG, "❌ LỖI KẾT NỐI SERVER")
-                    Log.e(TAG, "Exception type: ${t.javaClass.name}")
-                    Log.e(TAG, "Exception message: ${t.message}")
+                override fun onFailure(call: Call<UserResponse>, t: Throwable) {
+                    binding.btnSignUp.isEnabled = true
+                    binding.btnSignUp.text = "Đăng ký"
 
-                    // Log full stack trace
-                    Log.e(TAG, "Stack trace:", t)
-
-                    var errorType = "Lỗi không xác định"
-                    var errorDetail = t.message ?: "Không có thông tin chi tiết"
-
-                    when (t) {
-                        is SocketTimeoutException -> {
-                            errorType = "Timeout kết nối"
-                            Log.e(TAG, "⚠️ Timeout - Server không phản hồi kịp thời")
-                        }
-                        is ConnectException -> {
-                            errorType = "Không thể kết nối đến server"
-                            Log.e(TAG, "⚠️ ConnectException - Server có thể không chạy")
-                        }
-                        is UnknownHostException -> {
-                            errorType = "Không tìm thấy server"
-                            Log.e(TAG, "⚠️ UnknownHostException - URL có thể sai")
-                        }
-                        is SSLHandshakeException -> {
-                            errorType = "Lỗi bảo mật kết nối"
-                            Log.e(TAG, "⚠️ SSLHandshakeException - Vấn đề certificate")
-                        }
-                        else -> {
-                            Log.e(TAG, "⚠️ Unknown exception type")
-                        }
+                    var errorMessage = when (t) {
+                        is SocketTimeoutException -> "Timeout kết nối. Server không phản hồi."
+                        is ConnectException -> "Không thể kết nối đến server."
+                        is UnknownHostException -> "Không tìm thấy server. Kiểm tra kết nối mạng."
+                        is SSLHandshakeException -> "Lỗi bảo mật kết nối."
+                        else -> "Lỗi không xác định: ${t.message}"
                     }
 
-                    // Log thông tin request
-                    try {
-                        Log.e(TAG, "Request URL: ${call.request().url}")
-                        Log.e(TAG, "Request method: ${call.request().method}")
-                        Log.e(TAG, "Request headers: ${call.request().headers}")
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Cannot get request info: ${e.message}")
-                    }
+                    showToastSafe(errorMessage)
+                    Log.e(TAG, "Signup failed: ${t.message}", t)
 
-                    // Hiển thị thông báo cho người dùng
-                    val userMessage = "$errorType: $errorDetail"
-                    Log.e(TAG, "User message: $userMessage")
-                    showToast(userMessage)
+                    // Test direct connection (tùy chọn)
+                    // testDirectConnection()
                 }
             })
         }
 
         binding.btnChange.setOnClickListener {
-            Log.d(TAG, "Change to login button clicked")
             startActivity(Intent(this, LoginActivity::class.java))
             finish()
         }
     }
 
+    private fun saveUserData(user: UserData) {
+
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         isActivityRunning = false
-        Log.d(TAG, "SignUpActivity destroyed")
     }
 
-    private fun showToast(message: String) {
+    private fun showToastSafe(message: String) {
         runOnUiThread {
-            if (isActivityRunning && !isFinishing && !isDestroyed) {
-                try {
-                    Log.d(TAG, "Showing toast: $message")
-                    Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
-                } catch (e: Exception) {
-                    Log.e(TAG, "Toast error: ${e.message}")
-                }
+            if (isActivityRunning) {
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -230,10 +194,8 @@ class SignUpActivity : AppCompatActivity() {
             view?.let {
                 val imm = getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
                 imm.hideSoftInputFromWindow(it.windowToken, 0)
-                Log.d(TAG, "Keyboard hidden")
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Hide keyboard error: ${e.message}")
+        } catch (_: Exception) {
         }
     }
 }

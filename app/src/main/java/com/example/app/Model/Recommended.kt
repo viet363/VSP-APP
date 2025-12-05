@@ -10,11 +10,11 @@ data class RecommendResponse(
 
 data class RecommendedProduct(
     val Id: Int,
-    val Title: String,
+    val Product_name: String,
     val Description: String?,
     val Price: Double,
-    val ImageUrl: String?,
-    val Rating: Double?
+    val picUrl: String?,
+    val Score: Float?
 )
 
 data class ItemsModel(
@@ -24,16 +24,17 @@ data class ItemsModel(
     val price: Double,
     val picUrl: List<String>,
     val rating: Double? = 0.0,
+    val score: Float? = 0f,
     var numberInCart: Int = 1
 ) : Serializable {
 
     constructor(r: RecommendedProduct) : this(
         id = r.Id,
-        title = r.Title,
+        title = r.Product_name,
         description = r.Description,
         price = r.Price,
-        picUrl = if (!r.ImageUrl.isNullOrEmpty()) listOf(r.ImageUrl) else emptyList(),
-        rating = r.Rating ?: 0.0,
+        picUrl = if (!r.picUrl.isNullOrEmpty()) listOf(r.picUrl) else emptyList(),
+        score = r.Score ?: 0f,
         numberInCart = 1
     )
 }

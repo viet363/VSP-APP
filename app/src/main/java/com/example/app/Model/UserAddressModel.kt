@@ -8,3 +8,8 @@ data class UserAddressModel(
     val addressDetail: String,
     val isDefault: Boolean
 )
+
+data class AddressResponse(
+    val success: Boolean,
+    val data: List<UserAddressModel>
+)

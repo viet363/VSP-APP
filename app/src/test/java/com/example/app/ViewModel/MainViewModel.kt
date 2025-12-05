@@ -1,5 +1,6 @@
 package com.example.app.ViewModel
 
+import android.util.Log
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import com.example.app.Model.*
@@ -18,32 +19,39 @@ class MainViewModel : ViewModel() {
     val errorMessage = MutableLiveData<String?>()
     val isLoading = MutableLiveData<Boolean>(false)
 
-
-    // ------------------------- LOAD CATEGORY -------------------------
     fun loadCategories() {
         isLoading.value = true
-        RetrofitClient.categoriesApi.getAllCategories()
-            .enqueue(object : Callback<List<CategoryModel>> {
+
+        RetrofitClient.categoriesApi().getAllCategories()
+            .enqueue(object : Callback<CategoryResponse> {
                 override fun onResponse(
-                    call: Call<List<CategoryModel>>,
-                    response: Response<List<CategoryModel>>
+                    call: Call<CategoryResponse>,
+                    response: Response<CategoryResponse>
                 ) {
                     isLoading.value = false
-                    categories.value = response.body() ?: emptyList()
+
+                    if (response.isSuccessful) {
+                        val body = response.body()
+                        // Lấy data từ CategoryResponse
+                        categories.value = body?.data ?: emptyList()
+                    } else {
+                        errorMessage.value = "Lỗi server: ${response.code()}"
+                        categories.value = emptyList()
+                    }
                 }
 
-                override fun onFailure(call: Call<List<CategoryModel>>, t: Throwable) {
+                override fun onFailure(call: Call<CategoryResponse>, t: Throwable) {
                     isLoading.value = false
                     errorMessage.value = t.message
+                    categories.value = emptyList()
                 }
             })
     }
 
-
-    // ------------------------- LOAD RECOMMENDED -------------------------
     fun loadRecommended(userId: Long) {
         isLoading.value = true
-        RetrofitClient.recommendApi.getRecommendedProducts(userId.toInt())
+
+        RetrofitClient.recommendApi().getRecommendedProducts(userId.toInt())
             .enqueue(object : Callback<RecommendResponse> {
                 override fun onResponse(
                     call: Call<RecommendResponse>,
@@ -51,14 +59,21 @@ class MainViewModel : ViewModel() {
                 ) {
                     isLoading.value = false
 
-                    val body = response.body()
+                    if (response.isSuccessful) {
+                        val body = response.body()
 
-                    if (body != null && body.success) {
-                        val list = body.data?.map { ItemsModel(it) } ?: emptyList()
-                        recommended.value = list
+                        if (body != null && body.success) {
+                            val list = body.data?.map { ItemsModel(it) } ?: emptyList()
+                            recommended.value = list
 
-                        loadBannersFromRecommended(list)
+                            loadBannersFromRecommended(list)
+                        } else {
+                            recommended.value = emptyList()
+                            banners.value = emptyList()
+                            errorMessage.value = "Không có sản phẩm đề xuất"
+                        }
                     } else {
+                        errorMessage.value = "Lỗi server: ${response.code()}"
                         recommended.value = emptyList()
                         banners.value = emptyList()
                     }
@@ -67,54 +82,76 @@ class MainViewModel : ViewModel() {
                 override fun onFailure(call: Call<RecommendResponse>, t: Throwable) {
                     isLoading.value = false
                     errorMessage.value = t.message
+                    recommended.value = emptyList()
+                    banners.value = emptyList()
                 }
             })
     }
 
-
-    // ------------------------- LOAD FILTERED PRODUCTS -------------------------
     fun loadFiltered(categoryId: String) {
         val id = categoryId.toIntOrNull() ?: return
+        isLoading.value = true
 
-        RetrofitClient.productsApi.getProductsByCategory(id)
+        RetrofitClient.productsApi().getProductsByCategory(id)
             .enqueue(object : Callback<ProductListResponse> {
                 override fun onResponse(
                     call: Call<ProductListResponse>,
                     response: Response<ProductListResponse>
                 ) {
-                    val list = response.body()?.data?.map { it.toItemModel() } ?: emptyList()
-                    recommended.value = list
+                    isLoading.value = false
 
-                    loadBannersFromRecommended(list)
+                    if (response.isSuccessful) {
+                        val list = response.body()?.data?.map { it.toItemModel() } ?: emptyList()
+                        recommended.value = list
+                        loadBannersFromRecommended(list)
+                    } else {
+                        errorMessage.value = "Lỗi tải danh mục: ${response.code()}"
+                        recommended.value = emptyList()
+                        banners.value = emptyList()
+                    }
                 }
 
                 override fun onFailure(call: Call<ProductListResponse>, t: Throwable) {
+                    isLoading.value = false
                     errorMessage.value = t.message
+                    recommended.value = emptyList()
+                    banners.value = emptyList()
                 }
             })
     }
 
-
-    // ------------------------- SEARCH PRODUCTS -------------------------
     fun searchProducts(query: String) {
-        RetrofitClient.productsApi.searchProducts(query)
+        if (query.isBlank()) {
+            searchResults.value = emptyList()
+            return
+        }
+
+        isLoading.value = true
+        RetrofitClient.productsApi().searchProducts(query)
             .enqueue(object : Callback<ProductListResponse> {
                 override fun onResponse(
                     call: Call<ProductListResponse>,
                     response: Response<ProductListResponse>
                 ) {
-                    val list = response.body()?.data?.map { it.toItemModel() } ?: emptyList()
-                    searchResults.value = list
+                    isLoading.value = false
+
+                    if (response.isSuccessful) {
+                        val list = response.body()?.data?.map { it.toItemModel() } ?: emptyList()
+                        searchResults.value = list
+                    } else {
+                        errorMessage.value = "Lỗi tìm kiếm: ${response.code()}"
+                        searchResults.value = emptyList()
+                    }
                 }
 
                 override fun onFailure(call: Call<ProductListResponse>, t: Throwable) {
+                    isLoading.value = false
                     errorMessage.value = t.message
+                    searchResults.value = emptyList()
                 }
             })
     }
 
-
-    // ------------------------- LOAD BANNERS (FROM RECOMMENDED) -------------------------
     private fun loadBannersFromRecommended(list: List<ItemsModel>) {
         if (list.isEmpty()) {
             banners.value = emptyList()
@@ -123,7 +160,7 @@ class MainViewModel : ViewModel() {
 
         val bannerList = list.mapNotNull { item ->
             if (!item.picUrl.isNullOrEmpty()) {
-                SliderModel(item.picUrl.first())   // FIX: lấy ảnh đầu tiên
+                SliderModel(item.picUrl.first())
             } else null
         }
 

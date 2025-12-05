@@ -8,377 +8,282 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
 import com.example.app.Helper.TinyDB
+import com.example.app.Model.UserData
+import com.example.app.Model.UserResponse
 import com.example.app.Network.RetrofitClient
 import com.example.app.Network.UserApi
 import com.example.app.databinding.ActivityProfileBinding
-import com.example.app.Model.UserModel
-import com.example.app.Model.UserData
 import com.example.app.databinding.DialogChangePasswordBinding
-import okhttp3.MediaType
+import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.asRequestBody
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
 import java.io.File
 import java.io.FileOutputStream
-import okhttp3.MediaType.Companion.toMediaType
-
 
 class ProfileActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityProfileBinding
     private lateinit var tinyDB: TinyDB
-    private val api by lazy { RetrofitClient.userApi(this) }
+    private val api: UserApi by lazy { RetrofitClient.userApi() }
+
     private var selectedImageUri: Uri? = null
 
-    private val galleryLauncher = registerForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri ->
-        uri?.let {
-            selectedImageUri = it
-            binding.profileImage.setImageURI(it)
-        }
-    }
-
-    private val cameraLauncher = registerForActivityResult(
-        ActivityResultContracts.TakePicture()
-    ) { success ->
-        if (success) {
-            selectedImageUri?.let {
+    private val galleryLauncher =
+        registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            uri?.let {
+                selectedImageUri = it
                 binding.profileImage.setImageURI(it)
             }
         }
-    }
+
+    private val cameraLauncher =
+        registerForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+            if (success) selectedImageUri?.let {
+                binding.profileImage.setImageURI(it)
+            }
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityProfileBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
         tinyDB = TinyDB(this)
 
-        val userId = tinyDB.getLong("userId")
-        if (userId == 0L) {
-            Toast.makeText(this, "Vui lòng đăng nhập lại", Toast.LENGTH_SHORT).show()
-            finish()
+        if (tinyDB.getString("token", "").isEmpty()) {
+            navigateToLogin()
             return
         }
 
-        setupClickListeners()
+        setupListeners()
         loadProfile()
     }
 
-    private fun setupClickListeners() {
-        binding.backBtn.setOnClickListener {
-            onBackPressed()
+    private fun navigateToLogin() {
+        Intent(this, LoginActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            startActivity(this)
         }
-
-        binding.profileImage.setOnClickListener {
-            showImagePickerDialog()
-        }
-
-        binding.saveBtn.setOnClickListener {
-            val userId = tinyDB.getLong("userId")
-            if (userId != 0L) {
-                updateProfile(userId)
-            }
-        }
-
-        binding.logoutBtn.setOnClickListener {
-            showLogoutConfirmation()
-        }
-
-        binding.changePasswordBtn.setOnClickListener {
-            showChangePasswordDialog()
-        }
+        finish()
     }
 
-    private fun showImagePickerDialog() {
-        val options = arrayOf("Chụp ảnh", "Chọn từ thư viện", "Hủy")
-        AlertDialog.Builder(this)
-            .setTitle("Chọn ảnh đại diện")
-            .setItems(options) { _, which ->
-                when (which) {
-                    0 -> takePhotoFromCamera()
-                    1 -> selectImageFromGallery()
-                    // 2 là Hủy, không cần xử lý
-                }
-            }
-            .show()
-    }
-
-    private fun takePhotoFromCamera() {
-        try {
-            val tempFile = File.createTempFile("temp_image", ".jpg", cacheDir)
-            selectedImageUri = Uri.fromFile(tempFile)
-            cameraLauncher.launch(selectedImageUri!!)
-        } catch (e: Exception) {
-            Toast.makeText(this, "Lỗi khi chụp ảnh: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun selectImageFromGallery() {
-        galleryLauncher.launch("image/*")
+    private fun setupListeners() {
+        binding.backBtn.setOnClickListener { onBackPressed() }
+        binding.profileImage.setOnClickListener { showImagePickerDialog() }
+        binding.saveBtn.setOnClickListener { updateProfile() }
+        binding.logoutBtn.setOnClickListener { showLogoutConfirmation() }
+        binding.changePasswordBtn.setOnClickListener { showChangePasswordDialog() }
     }
 
     private fun loadProfile() {
         showLoading()
 
-        api.getUserProfile().enqueue(object : Callback<UserModel> {
-            override fun onResponse(call: Call<UserModel>, response: Response<UserModel>) {
+        api.getUserProfile().enqueue(object : Callback<UserResponse> {
+            override fun onResponse(call: Call<UserResponse>, resp: Response<UserResponse>) {
                 hideLoading()
-                if (response.isSuccessful && response.body()?.success == true) {
-                    response.body()?.user?.let { displayUserData(it) }
+
+                if (resp.isSuccessful && resp.body() != null) {
+                    displayUserData(resp.body()!!.user)
                 } else {
                     Toast.makeText(this@ProfileActivity, "Không tải được thông tin", Toast.LENGTH_SHORT).show()
                 }
             }
 
-            override fun onFailure(call: Call<UserModel>, t: Throwable) {
+            override fun onFailure(call: Call<UserResponse>, t: Throwable) {
                 hideLoading()
                 Toast.makeText(this@ProfileActivity, "Lỗi kết nối: ${t.message}", Toast.LENGTH_SHORT).show()
             }
         })
     }
 
-    private fun displayUserData(user: UserData)    {
+    private fun displayUserData(user: UserData) {
         binding.nameEditTxt.setText(user.fullname ?: "")
         binding.emailEditTxt.setText(user.email ?: "")
         binding.phoneEditTxt.setText(user.phone ?: "")
-        binding.currentEmailTxt.text = user.email ?: "Chưa có email"
-        binding.usernameTxt.text = user.username ?: "Chưa có username"
 
-        // Hiển thị avatar nếu có
-        user.avatar?.let { avatarUrl ->
-            Glide.with(this).load(avatarUrl).into(binding.profileImage)
+        binding.usernameTxt.text = user.username ?: "Chưa có username"
+        binding.currentEmailTxt.text = user.email ?: "Chưa có email"
+
+        if (!user.avatar.isNullOrEmpty()) {
+            Glide.with(this).load(user.avatar).into(binding.profileImage)
         }
     }
-
-    private fun updateProfile(id: Long) {
+    private fun updateProfile() {
         val fullname = binding.nameEditTxt.text.toString().trim()
         val email = binding.emailEditTxt.text.toString().trim()
         val phone = binding.phoneEditTxt.text.toString().trim()
 
-        // Validation
-        if (fullname.isEmpty()) {
-            binding.nameEditTxt.error = "Vui lòng nhập họ tên"
+        if (fullname.isEmpty() || email.isEmpty()) {
+            Toast.makeText(this, "Vui lòng nhập đầy đủ thông tin", Toast.LENGTH_SHORT).show()
             return
         }
-
-        if (email.isEmpty()) {
-            binding.emailEditTxt.error = "Vui lòng nhập email"
-            return
-        }
-
-        if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-            binding.emailEditTxt.error = "Email không hợp lệ"
-            return
-        }
-
-        showLoading()
 
         if (selectedImageUri != null) {
-            // Cập nhật cả ảnh và thông tin
-            uploadImageAndUpdateProfile(id, fullname, email, phone)
+            uploadAvatarAndUpdate(fullname, email, phone)
         } else {
-            // Chỉ cập nhật thông tin
-            updateUserInfo(id, fullname, email, phone)
+            updateUserInfo(fullname, email, phone)
         }
     }
 
-    private fun uploadImageAndUpdateProfile(id: Long, fullname: String, email: String, phone: String) {
-        selectedImageUri?.let { uri ->
-            try {
-                val file = File(cacheDir, "avatar_${System.currentTimeMillis()}.jpg")
-                val inputStream = contentResolver.openInputStream(uri)
-                val outputStream = FileOutputStream(file)
-                inputStream?.copyTo(outputStream)
-                inputStream?.close()
-                outputStream.close()
+    private fun updateUserInfo(fullname: String, email: String, phone: String) {
+        showLoading()
 
-                val imageMediaType = "image/*".toMediaType()
-                val textMediaType = "text/plain".toMediaType()
-
-                val requestFile = RequestBody.create(imageMediaType, file)
-                val avatarPart = MultipartBody.Part.createFormData("avatar", file.name, requestFile)
-
-                val idPart = RequestBody.create(textMediaType, id.toString())
-                val fullnamePart = RequestBody.create(textMediaType, fullname)
-                val emailPart = RequestBody.create(textMediaType, email)
-                val phonePart = RequestBody.create(textMediaType, phone)
-
-                api.updateUserWithAvatar(fullnamePart, emailPart, phonePart, avatarPart)
-                    .enqueue(object : Callback<com.example.app.Model.UserModel> {
-                        override fun onResponse(
-                            call: Call<com.example.app.Model.UserModel>,
-                            response: Response<com.example.app.Model.UserModel>
-                        ) {
-                            hideLoading()
-                            if (response.isSuccessful && response.body() != null) {
-                                Toast.makeText(this@ProfileActivity, "Cập nhật thành công!", Toast.LENGTH_SHORT).show()
-                                // Cập nhật local data
-                                response.body()?.user?.let { data ->
-                                    tinyDB.putString("fullname", data.fullname ?: "")
-                                    tinyDB.putString("email", data.email ?: "")
-                                    tinyDB.putString("avatar", data.avatar ?: "")
-                                }
-
-                            } else {
-                                val errorMessage = when (response.code()) {
-                                    400 -> "Dữ liệu không hợp lệ"
-                                    404 -> "Không tìm thấy người dùng"
-                                    else -> "Cập nhật thất bại: ${response.code()}"
-                                }
-                                Toast.makeText(this@ProfileActivity, errorMessage, Toast.LENGTH_SHORT).show()
-                            }
-                        }
-
-                        override fun onFailure(call: Call<com.example.app.Model.UserModel>, t: Throwable) {
-                            hideLoading()
-                            Toast.makeText(this@ProfileActivity, "Lỗi kết nối: ${t.message}", Toast.LENGTH_SHORT).show()
-                        }
-                    })
-
-            } catch (e: Exception) {
-                hideLoading()
-                Toast.makeText(this, "Lỗi xử lý ảnh: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
-        } ?: run {
-            updateUserInfo(id, fullname, email, phone)
-        }
-    }
-
-    private fun updateUserInfo(id: Long, fullname: String, email: String, phone: String) {
-        val body = hashMapOf<String, Any>(
-            "id" to id,
+        val body = hashMapOf(
             "fullname" to fullname,
             "email" to email,
             "phone" to phone
         )
 
-        api.updateUser(body).enqueue(object : Callback<com.example.app.Model.UserModel> {
-            override fun onResponse(
-                call: Call<com.example.app.Model.UserModel>,
-                response: Response<com.example.app.Model.UserModel>
-            ) {
+        api.updateUser(body).enqueue(object : Callback<UserResponse> {
+            override fun onResponse(call: Call<UserResponse>, resp: Response<UserResponse>) {
                 hideLoading()
-                if (response.isSuccessful && response.body() != null) {
+
+                if (resp.isSuccessful && resp.body() != null) {
                     Toast.makeText(this@ProfileActivity, "Cập nhật thành công!", Toast.LENGTH_SHORT).show()
-                    // Cập nhật local data
-                    response.body()?.user?.let { data ->
-                        tinyDB.putString("fullname", data.fullname ?: "")
-                        tinyDB.putString("email", data.email ?: "")
-                    }
+                    displayUserData(resp.body()!!.user)
                 } else {
-                    val errorMessage = when (response.code()) {
-                        400 -> "Dữ liệu không hợp lệ"
-                        404 -> "Không tìm thấy người dùng"
-                        409 -> "Email đã được sử dụng"
-                        else -> "Cập nhật thất bại: ${response.code()}"
-                    }
-                    Toast.makeText(this@ProfileActivity, errorMessage, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@ProfileActivity, "Cập nhật thất bại: ${resp.code()}", Toast.LENGTH_SHORT).show()
                 }
             }
 
-            override fun onFailure(call: Call<com.example.app.Model.UserModel>, t: Throwable) {
+            override fun onFailure(call: Call<UserResponse>, t: Throwable) {
                 hideLoading()
                 Toast.makeText(this@ProfileActivity, "Lỗi kết nối: ${t.message}", Toast.LENGTH_SHORT).show()
             }
         })
     }
 
+    private fun uploadAvatarAndUpdate(fullname: String, email: String, phone: String) {
+        selectedImageUri?.let { uri ->
+            lifecycleScope.launch {
+                try {
+                    showLoading()
+
+                    val file = File(cacheDir, "avatar_${System.currentTimeMillis()}.jpg")
+                    contentResolver.openInputStream(uri)?.use { input ->
+                        FileOutputStream(file).use { output -> input.copyTo(output) }
+                    }
+
+                    val fileBody = file.asRequestBody("image/*".toMediaType())
+                    val avatarPart = MultipartBody.Part.createFormData("avatar", file.name, fileBody)
+
+                    val fullnameBody = fullname.toRequestBody()
+                    val emailBody = email.toRequestBody()
+                    val phoneBody = phone.toRequestBody()
+
+                    // Sửa lại: gửi avatarPart có thể null
+                    api.updateUserWithAvatar(fullnameBody, emailBody, phoneBody, avatarPart)
+                        .enqueue(object : Callback<UserResponse> {
+                            override fun onResponse(call: Call<UserResponse>, resp: Response<UserResponse>) {
+                                hideLoading()
+
+                                if (resp.isSuccessful && resp.body() != null) {
+                                    Toast.makeText(this@ProfileActivity, "Cập nhật thành công!", Toast.LENGTH_SHORT).show()
+                                    displayUserData(resp.body()!!.user)
+                                } else {
+                                    Toast.makeText(this@ProfileActivity, "Cập nhật thất bại", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+
+                            override fun onFailure(call: Call<UserResponse>, t: Throwable) {
+                                hideLoading()
+                                Toast.makeText(this@ProfileActivity, "Lỗi kết nối: ${t.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        })
+
+                } catch (e: Exception) {
+                    hideLoading()
+                    Toast.makeText(this@ProfileActivity, "Lỗi xử lý ảnh: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun String.toRequestBody(): RequestBody =
+        RequestBody.create("text/plain".toMediaType(), this)
+
     private fun showChangePasswordDialog() {
-        val dialogBinding = DialogChangePasswordBinding.inflate(LayoutInflater.from(this))
+        val bindingDialog = DialogChangePasswordBinding.inflate(LayoutInflater.from(this))
 
         val dialog = AlertDialog.Builder(this)
             .setTitle("Đổi mật khẩu")
-            .setView(dialogBinding.root)
-            .setPositiveButton("Đổi mật khẩu", null) // Set null first to prevent auto-dismiss
+            .setView(bindingDialog.root)
+            .setPositiveButton("Đổi mật khẩu", null)
             .setNegativeButton("Hủy", null)
             .create()
 
         dialog.setOnShowListener {
-            val positiveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
-            positiveButton.setOnClickListener {
-                val currentPassword = dialogBinding.edtCurrentPassword.text.toString().trim()
-                val newPassword = dialogBinding.edtNewPassword.text.toString().trim()
-                val confirmPassword = dialogBinding.edtConfirmPassword.text.toString().trim()
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val current = bindingDialog.edtCurrentPassword.text.toString().trim()
+                val new = bindingDialog.edtNewPassword.text.toString().trim()
+                val confirm = bindingDialog.edtConfirmPassword.text.toString().trim()
 
-                if (validatePasswordInput(currentPassword, newPassword, confirmPassword)) {
-                    changePassword(currentPassword, newPassword)
-                    dialog.dismiss()
+                if (current.isEmpty() || new.isEmpty() || new != confirm) {
+                    Toast.makeText(this, "Vui lòng kiểm tra lại mật khẩu", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
                 }
+
+                changePassword(current, new)
+                dialog.dismiss()
             }
         }
 
         dialog.show()
     }
 
-    private fun validatePasswordInput(currentPassword: String, newPassword: String, confirmPassword: String): Boolean {
-        if (currentPassword.isEmpty()) {
-            Toast.makeText(this, "Vui lòng nhập mật khẩu hiện tại", Toast.LENGTH_SHORT).show()
-            return false
-        }
-
-        if (newPassword.isEmpty()) {
-            Toast.makeText(this, "Vui lòng nhập mật khẩu mới", Toast.LENGTH_SHORT).show()
-            return false
-        }
-
-        if (newPassword.length < 6) {
-            Toast.makeText(this, "Mật khẩu mới phải có ít nhất 6 ký tự", Toast.LENGTH_SHORT).show()
-            return false
-        }
-
-        if (newPassword != confirmPassword) {
-            Toast.makeText(this, "Mật khẩu xác nhận không khớp", Toast.LENGTH_SHORT).show()
-            return false
-        }
-
-        return true
-    }
-
-    private fun changePassword(currentPassword: String, newPassword: String) {
-        val userId = tinyDB.getLong("userId")
-        if (userId == 0L) {
-            Toast.makeText(this, "Vui lòng đăng nhập lại", Toast.LENGTH_SHORT).show()
-            return
-        }
-
+    private fun changePassword(current: String, new: String) {
         showLoading()
 
-        // SỬA LỖI: Sử dụng HashMap<String, String> và convert id thành String
-        val body = hashMapOf<String, String>(
-            "id" to userId.toString(),
-            "currentPassword" to currentPassword,
-            "newPassword" to newPassword
+        val body = hashMapOf(
+            "currentPassword" to current,
+            "newPassword" to new
         )
 
-        api.changePassword(body).enqueue(object : Callback<com.example.app.Model.UserModel> {
-            override fun onResponse(
-                call: Call<com.example.app.Model.UserModel>,
-                response: Response<com.example.app.Model.UserModel>
-            ) {
+        api.changePassword(body).enqueue(object : Callback<UserResponse> {
+            override fun onResponse(call: Call<UserResponse>, resp: Response<UserResponse>) {
                 hideLoading()
-                if (response.isSuccessful) {
-                    Toast.makeText(this@ProfileActivity, "Đổi mật khẩu thành công!", Toast.LENGTH_SHORT).show()
+                if (resp.isSuccessful) {
+                    Toast.makeText(this@ProfileActivity, "Đổi mật khẩu thành công", Toast.LENGTH_SHORT).show()
                 } else {
-                    val errorMessage = when (response.code()) {
-                        400 -> "Mật khẩu hiện tại không đúng"
-                        404 -> "Không tìm thấy người dùng"
-                        else -> "Đổi mật khẩu thất bại: ${response.code()}"
-                    }
-                    Toast.makeText(this@ProfileActivity, errorMessage, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@ProfileActivity, "Đổi mật khẩu thất bại", Toast.LENGTH_SHORT).show()
                 }
             }
 
-            override fun onFailure(call: Call<com.example.app.Model.UserModel>, t: Throwable) {
+            override fun onFailure(call: Call<UserResponse>, t: Throwable) {
                 hideLoading()
                 Toast.makeText(this@ProfileActivity, "Lỗi kết nối: ${t.message}", Toast.LENGTH_SHORT).show()
             }
         })
+    }
+
+    private fun showImagePickerDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Chọn ảnh đại diện")
+            .setItems(arrayOf("Chụp ảnh", "Chọn từ thư viện", "Hủy")) { _, which ->
+                when (which) {
+                    0 -> takePhoto()
+                    1 -> selectFromGallery()
+                }
+            }
+            .show()
+    }
+
+    private fun takePhoto() {
+        val temp = File.createTempFile("camera_temp", ".jpg", cacheDir)
+        selectedImageUri = Uri.fromFile(temp)
+        cameraLauncher.launch(selectedImageUri!!)
+    }
+
+    private fun selectFromGallery() {
+        galleryLauncher.launch("image/*")
     }
 
     private fun showLogoutConfirmation() {
@@ -386,19 +291,11 @@ class ProfileActivity : AppCompatActivity() {
             .setTitle("Đăng xuất")
             .setMessage("Bạn có chắc chắn muốn đăng xuất?")
             .setPositiveButton("Đăng xuất") { _, _ ->
-                performLogout()
+                tinyDB.clear()
+                navigateToLogin()
             }
             .setNegativeButton("Hủy", null)
             .show()
-    }
-
-    private fun performLogout() {
-        tinyDB.clear()
-        Toast.makeText(this, "Đã đăng xuất", Toast.LENGTH_SHORT).show()
-        val intent = Intent(this, LoginActivity::class.java)
-        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-        startActivity(intent)
-        finish()
     }
 
     private fun showLoading() {

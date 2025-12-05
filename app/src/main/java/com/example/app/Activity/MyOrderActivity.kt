@@ -66,10 +66,9 @@ class MyOrderActivity : AppCompatActivity() {
     }
 
     private fun loadOrders() {
-
         showLoading()
 
-        RetrofitClient.ordersApi.getOrders().enqueue(object : retrofit2.Callback<OrderResponse> {
+        RetrofitClient.ordersApi().getOrders().enqueue(object : retrofit2.Callback<OrderResponse> {
             override fun onResponse(call: retrofit2.Call<OrderResponse>, response: retrofit2.Response<OrderResponse>) {
                 hideLoading()
                 if (response.isSuccessful) {

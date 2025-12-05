@@ -115,7 +115,7 @@ class CartActivity : BaseActivity() {
     }
 
     private fun loadCartFromServer() {
-        RetrofitClient.cartApi.getCart()
+        RetrofitClient.cartApi().getCart()
             .enqueue(object : Callback<CartResponse> {
                 override fun onResponse(
                     call: Call<CartResponse>,

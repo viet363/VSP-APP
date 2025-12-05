@@ -3,46 +3,43 @@ package com.example.app.Model
 import java.util.Date
 
 data class OrderModel(
-    val id: Long,
-    val userId: Long,
-    val orderDate: Date,
-    val shippedDate: Date?,
-    val note: String?,
-    val shipAddress: String,
-    val shipFee: Double,
-    val paidDate: Date?,
-    val orderStatus: String,
-    val paymentType: String,
-    val createAt: Date,
-    val updateAt: Date,
-    val addressId: Long?,
+    val Id: Long,
+    val UserId: Long,
+    val Order_date: String,  // BE trả về Order_date
+    val Shipped_date: String?,
+    val Note: String?,
+    val Ship_address: String,
+    val Ship_fee: Double,
+    val Paid_date: String?,
+    val Order_status: String,
+    val Payment_type: String,
+    val Create_at: String,
+    val Update_at: String,
+    val AddressId: Long?,
     val total: Double,
     val items: List<OrderItemModel> = emptyList()
 )
 
 data class OrderItemModel(
-    val id: Long,
-    val orderId: Long,
-    val productId: Long,
-    val quantity: Int,
-    val unitPrice: Double,
-    val discountPercentage: Double?,
-    val discountAmount: Double?,
-    val productName: String?,
-    val productImage: String?
+    val Id: Long,
+    val OrderId: Long,
+    val ProductId: Long,
+    val Quantity: Int,
+    val Unit_price: Double,
+    val Discount_percentage: Double?,
+    val Discount_amount: Double?,
+    val Product_name: String?,  // BE join từ bảng product
+    val picUrl: String?  // BE join từ bảng product
 )
 
-data class OrderDetailModel(
-    val order: OrderModel,
-    val items: List<OrderItemModel>
-)
 data class OrderResponse(
     val success: Boolean,
     val orders: List<OrderModel>,
     val message: String? = null
 )
+
 data class OrderDetailResponse(
     val success: Boolean,
-    val order: OrderDetailModel,
+    val order: OrderModel,
     val message: String? = null
 )

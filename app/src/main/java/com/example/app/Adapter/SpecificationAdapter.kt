@@ -25,8 +25,9 @@ class SpecificationAdapter(
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val item = items[position]
 
-        holder.binding.keyTxt.text = item.spec_key
-        holder.binding.valueTxt.text = item.spec_value
+        // Sửa tên field từ model mới
+        holder.binding.keyTxt.text = item.specKey
+        holder.binding.valueTxt.text = item.specValue
     }
 
     override fun getItemCount(): Int = items.size

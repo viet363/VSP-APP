@@ -34,10 +34,11 @@
                 android:textStyle="bold"
                 android:textColor="@color/lavender" />
 
+            <!-- Đổi id từ edtemailLogin thành edtUsername -->
             <EditText
                 android:layout_width="match_parent"
                 android:layout_height="50dp"
-                android:id="@+id/edtemailLogin"
+                android:id="@+id/edtUsername"
                 android:background="@drawable/custom_edittext"
                 android:layout_marginTop="40dp"
                 android:padding="8dp"
@@ -47,10 +48,11 @@
                 android:textColor="@color/black"
                 android:maxLines="1" />
 
+            <!-- Đổi id từ edtpasswordLogin thành edtPassword -->
             <EditText
                 android:layout_width="match_parent"
                 android:layout_height="50dp"
-                android:id="@+id/edtpasswordLogin"
+                android:id="@+id/edtPassword"
                 android:background="@drawable/custom_edittext"
                 android:layout_marginTop="15dp"
                 android:padding="8dp"
@@ -61,23 +63,23 @@
                 android:maxLines="1"
                 android:inputType="textPassword" />
 
-            <!-- Google Login Button -->
+            <!-- Đổi id từ btnGoogleLogin thành btnGoogleSignIn -->
             <Button
-                android:id="@+id/btnGoogleLogin"
+                android:id="@+id/btnGoogleSignIn"
                 android:layout_width="match_parent"
                 android:layout_height="50dp"
                 android:layout_marginTop="15dp"
                 android:backgroundTint="@color/white"
                 android:text="Đăng nhập bằng Google"
                 android:textColor="@color/black"
-                android:textSize="16sp"
-                />
+                android:textSize="16sp" />
 
+            <!-- Đổi id từ btnLogin thành btnSignIn -->
             <Button
                 android:layout_width="match_parent"
                 android:layout_height="60dp"
                 android:text="Đăng nhập"
-                android:id="@+id/btnLogin"
+                android:id="@+id/btnSignIn"
                 android:textSize="18sp"
                 android:layout_marginTop="15dp"
                 android:backgroundTint="@color/lavender" />
@@ -85,13 +87,26 @@
         </LinearLayout>
     </androidx.cardview.widget.CardView>
 
+    <!-- Đổi id từ btnChangeSignUp thành btnSignUp -->
     <ImageButton
-        android:id="@+id/btnChangeSignUp"
+        android:id="@+id/btnSignUp"
         android:layout_width="300dp"
-        android:layout_height="40dp"
+        android:layout_height="64dp"
         android:layout_marginTop="20dp"
-        app:srcCompat="@drawable/baseline_arrow_circle_left_24"
         android:background="@android:color/transparent"
-        android:contentDescription="Go to Sign Up"
+        android:contentDescription="Đăng ký ngay"
+        app:srcCompat="@drawable/baseline_arrow_circle_left_24"
         tools:ignore="ContentDescription" />
+
+    <!-- Thêm TextView cho Forgot Password -->
+    <TextView
+        android:id="@+id/btnForgotPassword"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Quên mật khẩu?"
+        android:textColor="@color/lavender"
+        android:textSize="14sp"
+        android:layout_marginTop="10dp"
+        android:padding="8dp" />
+
 </LinearLayout>
