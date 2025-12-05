@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.example.app.Helper.TinyDB
 import com.example.app.Model.UserData
 import com.example.app.Model.UserResponse
 import com.example.app.Network.AuthApi
@@ -172,7 +173,16 @@ class SignUpActivity : AppCompatActivity() {
     }
 
     private fun saveUserData(user: UserData) {
-
+        val tinyDB = TinyDB(this)
+        if (user.token != null) {
+            tinyDB.putString("token", user.token!!)
+        }
+        tinyDB.putLong("userId", user.id)
+        tinyDB.putString("username", user.username)
+        tinyDB.putString("email", user.email)
+        user.fullname?.let { tinyDB.putString("fullname", it) }
+        user.avatar?.let { tinyDB.putString("avatar", it) }
+        user.loginType?.let { tinyDB.putString("loginType", it) }
     }
 
     override fun onDestroy() {

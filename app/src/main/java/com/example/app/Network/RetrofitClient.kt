@@ -13,9 +13,9 @@ import java.util.concurrent.TimeUnit
 object RetrofitClient {
 
     private const val TAG = "RetrofitClient"
-    private const val CONNECT_TIMEOUT = 60L
-    private const val READ_TIMEOUT = 60L
-    private const val WRITE_TIMEOUT = 60L
+    private const val CONNECT_TIMEOUT = 90L
+    private const val READ_TIMEOUT = 90L
+    private const val WRITE_TIMEOUT = 180L
 
     private lateinit var appContext: Context
     private lateinit var baseUrl: String
