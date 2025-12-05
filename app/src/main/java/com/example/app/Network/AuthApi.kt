@@ -1,5 +1,7 @@
 package com.example.app.Network
 
+import com.example.app.Model.LoginResponse
+import com.example.app.Model.RegisterResponse
 import com.example.app.Model.UserResponse
 import retrofit2.Call
 import retrofit2.http.Body
@@ -10,13 +12,13 @@ import retrofit2.http.Path
 interface AuthApi {
 
     @POST("mobile/auth/login")
-    fun login(@Body body: HashMap<String, String>): Call<UserResponse>
+    fun login(@Body body: HashMap<String, String>): Call<LoginResponse>
 
     @POST("mobile/auth/register")
-    fun register(@Body body: HashMap<String, String>): Call<UserResponse>
+    fun register(@Body body: HashMap<String, String>): Call<RegisterResponse>
 
     @POST("mobile/auth/login-google")
-    fun loginGoogle(@Body body: HashMap<String, String>): Call<UserResponse>
+    fun loginGoogle(@Body body: HashMap<String, String>): Call<LoginResponse>
 
     @GET("mobile/auth/profile/{id}")
     fun getProfile(@Path("id") id: Long): Call<UserResponse>

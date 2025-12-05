@@ -36,7 +36,6 @@ class CartActivity : BaseActivity() {
     private fun initCartList() {
         val list = managerCart.getLocalCart()
 
-        // Sửa ở đây: Truyền đủ 3 tham số
         val adapter = CartAdapter(
             listItemSelected = list,
             context = this,

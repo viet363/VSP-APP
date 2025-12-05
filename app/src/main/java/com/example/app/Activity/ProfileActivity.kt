@@ -91,7 +91,7 @@ class ProfileActivity : AppCompatActivity() {
                 hideLoading()
 
                 if (resp.isSuccessful && resp.body() != null) {
-                    displayUserData(resp.body()!!.user)
+                    displayUserData(resp.body()!!.user!!)
                 } else {
                     Toast.makeText(this@ProfileActivity, "Không tải được thông tin", Toast.LENGTH_SHORT).show()
                 }
@@ -148,7 +148,7 @@ class ProfileActivity : AppCompatActivity() {
 
                 if (resp.isSuccessful && resp.body() != null) {
                     Toast.makeText(this@ProfileActivity, "Cập nhật thành công!", Toast.LENGTH_SHORT).show()
-                    displayUserData(resp.body()!!.user)
+                    displayUserData(resp.body()!!.user!!)
                 } else {
                     Toast.makeText(this@ProfileActivity, "Cập nhật thất bại: ${resp.code()}", Toast.LENGTH_SHORT).show()
                 }
@@ -187,7 +187,7 @@ class ProfileActivity : AppCompatActivity() {
 
                                 if (resp.isSuccessful && resp.body() != null) {
                                     Toast.makeText(this@ProfileActivity, "Cập nhật thành công!", Toast.LENGTH_SHORT).show()
-                                    displayUserData(resp.body()!!.user)
+                                    displayUserData(resp.body()!!.user!!)
                                 } else {
                                     Toast.makeText(this@ProfileActivity, "Cập nhật thất bại", Toast.LENGTH_SHORT).show()
                                 }

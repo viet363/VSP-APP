@@ -11,7 +11,6 @@ import retrofit2.Response
 
 class MainViewModel : ViewModel() {
 
-    // CÁC LIVEDATA CHO HOME SCREEN
     val categories = MutableLiveData<List<CategoryModel>>(emptyList())
     val recommended = MutableLiveData<List<ItemsModel>>(emptyList())
     val searchResults = MutableLiveData<List<ItemsModel>>(emptyList())
@@ -19,13 +18,11 @@ class MainViewModel : ViewModel() {
     val errorMessage = MutableLiveData<String?>()
     val isLoading = MutableLiveData<Boolean>(false)
 
-    // CÁC LIVEDATA CHO DETAIL SCREEN
     val productDetail = MutableLiveData<ProductResponse?>()
     val productSpecifications = MutableLiveData<List<ProductSpecificationModel>>(emptyList())
     val productImages = MutableLiveData<List<String>>(emptyList())
     val productReviews = MutableLiveData<List<ProductReviewModel>>(emptyList())
 
-    // ------------------------- LOAD CATEGORY -------------------------
     fun loadCategories() {
         isLoading.value = true
 
@@ -54,7 +51,6 @@ class MainViewModel : ViewModel() {
             })
     }
 
-    // ------------------------- LOAD RECOMMENDED -------------------------
     fun loadRecommended(userId: Long) {
         isLoading.value = true
 
@@ -94,7 +90,6 @@ class MainViewModel : ViewModel() {
             })
     }
 
-    // ------------------------- LOAD FILTERED PRODUCTS -------------------------
     fun loadFiltered(categoryId: String) {
         val id = categoryId.toIntOrNull() ?: return
         isLoading.value = true
@@ -127,7 +122,6 @@ class MainViewModel : ViewModel() {
             })
     }
 
-    // ------------------------- SEARCH PRODUCTS -------------------------
     fun searchProducts(query: String) {
         if (query.isBlank()) {
             searchResults.value = emptyList()
@@ -160,7 +154,6 @@ class MainViewModel : ViewModel() {
             })
     }
 
-    // ------------------------- LOAD PRODUCT DETAIL -------------------------
     fun loadProductDetail(id: Int) {
         isLoading.value = true
         Log.d("MainViewModel", "Loading product detail for ID: $id")
@@ -202,7 +195,6 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    // ------------------------- LOAD SPECIFICATIONS -------------------------
     fun loadSpecifications(id: Int) {
         isLoading.value = true
         Log.d("MainViewModel", "Loading specifications for product ID: $id")
@@ -234,14 +226,12 @@ class MainViewModel : ViewModel() {
             })
     }
 
-    // ------------------------- LOAD REVIEWS -------------------------
     fun loadReviews(id: Int) {
         // Tạm thời để empty list vì chưa có API
         productReviews.value = emptyList()
         Log.d("MainViewModel", "Reviews loaded (empty for now)")
     }
 
-    // ------------------------- LOAD PRODUCT IMAGES -------------------------
     fun loadProductImages(id: Int) {
         // Lấy ảnh từ productDetail
         productDetail.observeForever { detail ->
@@ -255,17 +245,14 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    // ------------------------- CLEAR ERROR -------------------------
     fun clearError() {
         errorMessage.value = null
     }
 
-    // ------------------------- CLEAR SEARCH -------------------------
     fun clearSearch() {
         searchResults.value = emptyList()
     }
 
-    // ------------------------- PRIVATE FUNCTIONS -------------------------
     private fun loadBannersFromRecommended(list: List<ItemsModel>) {
         if (list.isEmpty()) {
             banners.value = emptyList()

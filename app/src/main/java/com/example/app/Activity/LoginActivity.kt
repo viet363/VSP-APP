@@ -6,8 +6,8 @@ import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.example.app.Helper.TinyDB
+import com.example.app.Model.LoginResponse
 import com.example.app.Model.UserData
-import com.example.app.Model.UserResponse
 import com.example.app.Network.AuthApi
 import com.example.app.Network.RetrofitClient
 import com.example.app.R
@@ -38,16 +38,14 @@ class LoginActivity : AppCompatActivity() {
 
         Log.d(TAG, "LoginActivity started")
 
-        // KHỞI TẠO RETROFIT TRƯỚC - QUAN TRỌNG!
+        // KHỞI TẠO RETROFIT
         try {
-            // Khởi tạo RetrofitClient với context
             RetrofitClient.init(this)
             api = RetrofitClient.authApi()
             Log.d(TAG, "Retrofit API initialized successfully")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to initialize Retrofit", e)
             showToast("Không thể khởi tạo kết nối")
-            // KHÔNG return ở đây, vẫn tiếp tục để xử lý UI
         }
 
         tinyDB = TinyDB(this)
@@ -93,10 +91,11 @@ class LoginActivity : AppCompatActivity() {
             binding.btnSignIn.isEnabled = false
             binding.btnSignIn.text = "Đang đăng nhập..."
 
-            api.login(body).enqueue(object : Callback<UserResponse> {
+            // SỬA: Sử dụng LoginResponse thay vì UserResponse
+            api.login(body).enqueue(object : Callback<LoginResponse> {
                 override fun onResponse(
-                    call: Call<UserResponse>,
-                    response: Response<UserResponse>
+                    call: Call<LoginResponse>,
+                    response: Response<LoginResponse>
                 ) {
                     binding.btnSignIn.isEnabled = true
                     binding.btnSignIn.text = "Đăng nhập"
@@ -105,11 +104,12 @@ class LoginActivity : AppCompatActivity() {
                     Log.d(TAG, "Response headers: ${response.headers()}")
 
                     if (response.isSuccessful) {
-                        val userResponse = response.body()
-                        Log.d(TAG, "Response body: $userResponse")
+                        val loginResponse = response.body()
+                        Log.d(TAG, "Response body: $loginResponse")
 
-                        if (userResponse != null && userResponse.success) {
-                            val user = userResponse.user
+                        if (loginResponse != null && loginResponse.success) {
+                            // SỬA: Tạo UserData từ LoginResponse
+                            val user = loginResponse.toUserData()
                             Log.i(TAG, "LOGIN SUCCESSFUL - User ID: ${user.id}")
 
                             // Lưu thông tin người dùng
@@ -170,7 +170,7 @@ class LoginActivity : AppCompatActivity() {
                     }
                 }
 
-                override fun onFailure(call: Call<UserResponse>, t: Throwable) {
+                override fun onFailure(call: Call<LoginResponse>, t: Throwable) {
                     binding.btnSignIn.isEnabled = true
                     binding.btnSignIn.text = "Đăng nhập"
 
@@ -195,7 +195,6 @@ class LoginActivity : AppCompatActivity() {
         }
 
         binding.btnForgotPassword.setOnClickListener {
-            // Xử lý quên mật khẩu
             showToast("Chức năng quên mật khẩu đang phát triển")
         }
     }
@@ -210,7 +209,6 @@ class LoginActivity : AppCompatActivity() {
                 val idToken = account.idToken
 
                 if (idToken != null) {
-                    // KIỂM TRA API ĐÃ KHỞI TẠO CHƯA
                     if (!this::api.isInitialized) {
                         Log.e(TAG, "API not initialized when handling Google Sign-In")
                         showToast("Lỗi kết nối. Vui lòng thử lại.")
@@ -220,17 +218,18 @@ class LoginActivity : AppCompatActivity() {
                     val body = hashMapOf("idToken" to idToken)
                     Log.d(TAG, "Sending Google login request with token length: ${idToken.length}")
 
-                    api.loginGoogle(body).enqueue(object : Callback<UserResponse> {
+                    // SỬA: Sử dụng LoginResponse cho Google login
+                    api.loginGoogle(body).enqueue(object : Callback<LoginResponse> {
                         override fun onResponse(
-                            call: Call<UserResponse>,
-                            response: Response<UserResponse>
+                            call: Call<LoginResponse>,
+                            response: Response<LoginResponse>
                         ) {
                             Log.d(TAG, "Google login response code: ${response.code()}")
 
                             if (response.isSuccessful) {
-                                val userResponse = response.body()
-                                if (userResponse?.success == true && userResponse.user != null) {
-                                    val user = userResponse.user
+                                val loginResponse = response.body()
+                                if (loginResponse?.success == true) {
+                                    val user = loginResponse.toUserData()
 
                                     // Lưu thông tin user
                                     saveUserData(user)
@@ -242,7 +241,7 @@ class LoginActivity : AppCompatActivity() {
 
                                     showToast("Đăng nhập Google thành công")
                                 } else {
-                                    Log.e(TAG, "Google login failed: success=false or user=null")
+                                    Log.e(TAG, "Google login failed: success=false")
                                     showToast("Đăng nhập Google thất bại")
                                 }
                             } else {
@@ -252,7 +251,7 @@ class LoginActivity : AppCompatActivity() {
                             }
                         }
 
-                        override fun onFailure(call: Call<UserResponse>, t: Throwable) {
+                        override fun onFailure(call: Call<LoginResponse>, t: Throwable) {
                             Log.e(TAG, "Google login network error", t)
                             showToast("Lỗi kết nối: ${t.message}")
                         }
@@ -282,7 +281,7 @@ class LoginActivity : AppCompatActivity() {
 
             // Lưu thông tin profile
             tinyDB.putString("username", user.username)
-            tinyDB.putString("email", user.email)
+            tinyDB.putString("email", user.email ?: "")
 
             if (user.fullname != null) {
                 tinyDB.putString("fullname", user.fullname!!)

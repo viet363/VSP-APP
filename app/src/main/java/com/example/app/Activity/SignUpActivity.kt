@@ -6,8 +6,9 @@ import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.example.app.Helper.TinyDB
+import com.example.app.Model.LoginResponse
+import com.example.app.Model.RegisterResponse
 import com.example.app.Model.UserData
-import com.example.app.Model.UserResponse
 import com.example.app.Network.AuthApi
 import com.example.app.Network.RetrofitClient
 import com.example.app.databinding.ActivitySignUpBinding
@@ -37,7 +38,7 @@ class SignUpActivity : AppCompatActivity() {
 
         // Khởi tạo Retrofit
         try {
-            RetrofitClient.init(this)  // Thêm dòng này nếu chưa có
+            RetrofitClient.init(this)
             api = RetrofitClient.authApi()
             Log.d(TAG, "Retrofit API initialized successfully")
         } catch (e: Exception) {
@@ -54,6 +55,7 @@ class SignUpActivity : AppCompatActivity() {
             val confirmPass = binding.edtConfirmPassword.text.toString().trim()
             val fullname = binding.edtFullname.text.toString().trim()
 
+            // Validate input
             if (username.isEmpty()) {
                 showToastSafe("Vui lòng nhập tên đăng nhập")
                 return@setOnClickListener
@@ -62,8 +64,16 @@ class SignUpActivity : AppCompatActivity() {
                 showToastSafe("Vui lòng nhập email")
                 return@setOnClickListener
             }
+            if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                showToastSafe("Email không hợp lệ")
+                return@setOnClickListener
+            }
             if (pass.isEmpty()) {
                 showToastSafe("Vui lòng nhập mật khẩu")
+                return@setOnClickListener
+            }
+            if (pass.length < 6) {
+                showToastSafe("Mật khẩu phải có ít nhất 6 ký tự")
                 return@setOnClickListener
             }
             if (confirmPass.isEmpty()) {
@@ -72,14 +82,6 @@ class SignUpActivity : AppCompatActivity() {
             }
             if (pass != confirmPass) {
                 showToastSafe("Mật khẩu xác nhận không khớp")
-                return@setOnClickListener
-            }
-            if (pass.length < 6) {
-                showToastSafe("Mật khẩu phải có ít nhất 6 ký tự")
-                return@setOnClickListener
-            }
-            if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-                showToastSafe("Email không hợp lệ")
                 return@setOnClickListener
             }
 
@@ -104,10 +106,11 @@ class SignUpActivity : AppCompatActivity() {
 
             Log.d(TAG, "Sending signup request for username: $username, email: $email")
 
-            api.register(body).enqueue(object : Callback<UserResponse> {  // Sửa: UserResponse
+            // SỬA: Sử dụng RegisterResponse
+            api.register(body).enqueue(object : Callback<RegisterResponse> {
                 override fun onResponse(
-                    call: Call<UserResponse>,
-                    response: Response<UserResponse>
+                    call: Call<RegisterResponse>,
+                    response: Response<RegisterResponse>
                 ) {
                     binding.btnSignUp.isEnabled = true
                     binding.btnSignUp.text = "Đăng ký"
@@ -117,20 +120,33 @@ class SignUpActivity : AppCompatActivity() {
                     Log.d(TAG, "Response code: ${response.code()}")
 
                     if (response.isSuccessful) {
-                        val userResponse = response.body()
-                        if (userResponse?.success == true && userResponse.user != null) {
-                            val user = userResponse.user
-                            showToastSafe("Đăng ký thành công!")
+                        val registerResponse = response.body()
+                        if (registerResponse?.success == true) {
+                            showToastSafe(registerResponse.message ?: "Đăng ký thành công!")
+
+                            // Tạo UserData từ RegisterResponse (nếu có thông tin)
+                            val user = UserData(
+                                id = registerResponse.id ?: 0L,
+                                username = registerResponse.username ?: username,
+                                email = registerResponse.email,
+                                fullname = registerResponse.fullname,
+                                gender = null,
+                                birthday = null,
+                                avatar = null,
+                                phone = null,
+                                createAt = null,
+                                updateAt = null,
+                                token = registerResponse.token,
+                                loginType = "email"
+                            )
 
                             saveUserData(user)
 
+                            // Chuyển đến LoginActivity
                             startActivity(Intent(this@SignUpActivity, LoginActivity::class.java))
                             finish()
                         } else {
-                            val errorMessage = userResponse?.let {
-                                if (!it.success) "Đăng ký thất bại"
-                                else "Không nhận được thông tin user"
-                            } ?: "Đăng ký thất bại"
+                            val errorMessage = registerResponse?.message ?: "Đăng ký thất bại"
                             showToastSafe(errorMessage)
                         }
                     } else {
@@ -145,7 +161,7 @@ class SignUpActivity : AppCompatActivity() {
                     }
                 }
 
-                override fun onFailure(call: Call<UserResponse>, t: Throwable) {
+                override fun onFailure(call: Call<RegisterResponse>, t: Throwable) {
                     binding.btnSignUp.isEnabled = true
                     binding.btnSignUp.text = "Đăng ký"
 
@@ -159,9 +175,6 @@ class SignUpActivity : AppCompatActivity() {
 
                     showToastSafe(errorMessage)
                     Log.e(TAG, "Signup failed: ${t.message}", t)
-
-                    // Test direct connection (tùy chọn)
-                    // testDirectConnection()
                 }
             })
         }
@@ -179,7 +192,7 @@ class SignUpActivity : AppCompatActivity() {
         }
         tinyDB.putLong("userId", user.id)
         tinyDB.putString("username", user.username)
-        tinyDB.putString("email", user.email)
+        tinyDB.putString("email", user.email ?: "")
         user.fullname?.let { tinyDB.putString("fullname", it) }
         user.avatar?.let { tinyDB.putString("avatar", it) }
         user.loginType?.let { tinyDB.putString("loginType", it) }
