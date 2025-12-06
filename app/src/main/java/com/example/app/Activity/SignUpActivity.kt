@@ -6,7 +6,6 @@ import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.example.app.Helper.TinyDB
-import com.example.app.Model.LoginResponse
 import com.example.app.Model.RegisterResponse
 import com.example.app.Model.UserData
 import com.example.app.Network.AuthApi

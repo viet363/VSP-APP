@@ -3,6 +3,7 @@ package com.example.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -11,8 +12,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
 import com.example.app.Helper.TinyDB
+import com.example.app.Model.ProfileResponse
 import com.example.app.Model.UserData
-import com.example.app.Model.UserResponse
 import com.example.app.Network.RetrofitClient
 import com.example.app.Network.UserApi
 import com.example.app.databinding.ActivityProfileBinding
@@ -27,13 +28,15 @@ import retrofit2.Callback
 import retrofit2.Response
 import java.io.File
 import java.io.FileOutputStream
+import com.bumptech.glide.request.RequestOptions
+import android.widget.ImageView
 
 class ProfileActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityProfileBinding
     private lateinit var tinyDB: TinyDB
-    private val api: UserApi by lazy { RetrofitClient.userApi() }
-
+    private lateinit var api: UserApi
+    private val TAG = "ProfileActivity"
     private var selectedImageUri: Uri? = null
 
     private val galleryLauncher =
@@ -58,10 +61,15 @@ class ProfileActivity : AppCompatActivity() {
 
         tinyDB = TinyDB(this)
 
-        if (tinyDB.getString("token", "").isEmpty()) {
+        // Kiểm tra token
+        val token = tinyDB.getString("token", "")
+        if (token.isEmpty()) {
             navigateToLogin()
             return
         }
+
+        // Khởi tạo API
+        api = RetrofitClient.userApi()
 
         setupListeners()
         loadProfile()
@@ -86,23 +94,41 @@ class ProfileActivity : AppCompatActivity() {
     private fun loadProfile() {
         showLoading()
 
-        api.getUserProfile().enqueue(object : Callback<UserResponse> {
-            override fun onResponse(call: Call<UserResponse>, resp: Response<UserResponse>) {
+        api.getUserProfile().enqueue(object : Callback<ProfileResponse> {
+            override fun onResponse(call: Call<ProfileResponse>, resp: Response<ProfileResponse>) {
                 hideLoading()
 
                 if (resp.isSuccessful && resp.body() != null) {
-                    displayUserData(resp.body()!!.user!!)
+                    val profileResponse = resp.body()!!
+                    if (profileResponse.success && profileResponse.user != null) {
+                        displayUserData(profileResponse.user!!)
+                    } else {
+                        Toast.makeText(
+                            this@ProfileActivity,
+                            profileResponse.message ?: "Không tải được thông tin",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 } else {
-                    Toast.makeText(this@ProfileActivity, "Không tải được thông tin", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        this@ProfileActivity,
+                        "Lỗi: ${resp.code()}",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
 
-            override fun onFailure(call: Call<UserResponse>, t: Throwable) {
+            override fun onFailure(call: Call<ProfileResponse>, t: Throwable) {
                 hideLoading()
-                Toast.makeText(this@ProfileActivity, "Lỗi kết nối: ${t.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    this@ProfileActivity,
+                    "Lỗi kết nối: ${t.message}",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         })
     }
+
 
     private fun displayUserData(user: UserData) {
         binding.nameEditTxt.setText(user.fullname ?: "")
@@ -113,9 +139,28 @@ class ProfileActivity : AppCompatActivity() {
         binding.currentEmailTxt.text = user.email ?: "Chưa có email"
 
         if (!user.avatar.isNullOrEmpty()) {
-            Glide.with(this).load(user.avatar).into(binding.profileImage)
+            // Sử dụng try-catch để tránh crash
+            try {
+                Glide.with(this)
+                    .load(user.avatar)
+                    .apply(
+                        RequestOptions()
+                        .circleCrop() // Nếu muốn ảnh tròn
+                        .placeholder(android.R.drawable.ic_menu_gallery) // Dùng drawable có sẵn
+                        .error(android.R.drawable.ic_menu_report_image) // Ảnh khi lỗi
+                    )
+                    .into(binding.profileImage)
+            } catch (e: Exception) {
+                // Fallback nếu Glide lỗi
+                binding.profileImage.setImageResource(android.R.drawable.ic_menu_gallery)
+                Log.e(TAG, "Error loading avatar: ${e.message}")
+            }
+        } else {
+            // Nếu không có avatar, dùng ảnh mặc định
+            binding.profileImage.setImageResource(android.R.drawable.ic_menu_gallery)
         }
     }
+
     private fun updateProfile() {
         val fullname = binding.nameEditTxt.text.toString().trim()
         val email = binding.emailEditTxt.text.toString().trim()
@@ -142,21 +187,42 @@ class ProfileActivity : AppCompatActivity() {
             "phone" to phone
         )
 
-        api.updateUser(body).enqueue(object : Callback<UserResponse> {
-            override fun onResponse(call: Call<UserResponse>, resp: Response<UserResponse>) {
+        api.updateUser(body).enqueue(object : Callback<ProfileResponse> {
+            override fun onResponse(call: Call<ProfileResponse>, resp: Response<ProfileResponse>) {
                 hideLoading()
 
                 if (resp.isSuccessful && resp.body() != null) {
-                    Toast.makeText(this@ProfileActivity, "Cập nhật thành công!", Toast.LENGTH_SHORT).show()
-                    displayUserData(resp.body()!!.user!!)
+                    val response = resp.body()!!
+                    if (response.success && response.user != null) {
+                        Toast.makeText(
+                            this@ProfileActivity,
+                            response.message ?: "Cập nhật thành công!",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        displayUserData(response.user!!)
+                    } else {
+                        Toast.makeText(
+                            this@ProfileActivity,
+                            response.message ?: "Cập nhật thất bại",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 } else {
-                    Toast.makeText(this@ProfileActivity, "Cập nhật thất bại: ${resp.code()}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        this@ProfileActivity,
+                        "Cập nhật thất bại: ${resp.code()}",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
 
-            override fun onFailure(call: Call<UserResponse>, t: Throwable) {
+            override fun onFailure(call: Call<ProfileResponse>, t: Throwable) {
                 hideLoading()
-                Toast.makeText(this@ProfileActivity, "Lỗi kết nối: ${t.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    this@ProfileActivity,
+                    "Lỗi kết nối: ${t.message}",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         })
     }
@@ -167,11 +233,15 @@ class ProfileActivity : AppCompatActivity() {
                 try {
                     showLoading()
 
+                    // Tạo file tạm từ URI
                     val file = File(cacheDir, "avatar_${System.currentTimeMillis()}.jpg")
                     contentResolver.openInputStream(uri)?.use { input ->
-                        FileOutputStream(file).use { output -> input.copyTo(output) }
+                        FileOutputStream(file).use { output ->
+                            input.copyTo(output)
+                        }
                     }
 
+                    // Tạo multipart request
                     val fileBody = file.asRequestBody("image/*".toMediaType())
                     val avatarPart = MultipartBody.Part.createFormData("avatar", file.name, fileBody)
 
@@ -179,29 +249,56 @@ class ProfileActivity : AppCompatActivity() {
                     val emailBody = email.toRequestBody()
                     val phoneBody = phone.toRequestBody()
 
-                    // Sửa lại: gửi avatarPart có thể null
                     api.updateUserWithAvatar(fullnameBody, emailBody, phoneBody, avatarPart)
-                        .enqueue(object : Callback<UserResponse> {
-                            override fun onResponse(call: Call<UserResponse>, resp: Response<UserResponse>) {
+                        .enqueue(object : Callback<ProfileResponse> {
+                            override fun onResponse(
+                                call: Call<ProfileResponse>,
+                                resp: Response<ProfileResponse>
+                            ) {
                                 hideLoading()
 
                                 if (resp.isSuccessful && resp.body() != null) {
-                                    Toast.makeText(this@ProfileActivity, "Cập nhật thành công!", Toast.LENGTH_SHORT).show()
-                                    displayUserData(resp.body()!!.user!!)
+                                    val response = resp.body()!!
+                                    if (response.success && response.user != null) {
+                                        Toast.makeText(
+                                            this@ProfileActivity,
+                                            response.message ?: "Cập nhật thành công!",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                        displayUserData(response.user!!)
+                                    } else {
+                                        Toast.makeText(
+                                            this@ProfileActivity,
+                                            response.message ?: "Cập nhật thất bại",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
                                 } else {
-                                    Toast.makeText(this@ProfileActivity, "Cập nhật thất bại", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(
+                                        this@ProfileActivity,
+                                        "Cập nhật thất bại: ${resp.code()}",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                 }
                             }
 
-                            override fun onFailure(call: Call<UserResponse>, t: Throwable) {
+                            override fun onFailure(call: Call<ProfileResponse>, t: Throwable) {
                                 hideLoading()
-                                Toast.makeText(this@ProfileActivity, "Lỗi kết nối: ${t.message}", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    this@ProfileActivity,
+                                    "Lỗi kết nối: ${t.message}",
+                                    Toast.LENGTH_SHORT
+                                ).show()
                             }
                         })
 
                 } catch (e: Exception) {
                     hideLoading()
-                    Toast.makeText(this@ProfileActivity, "Lỗi xử lý ảnh: ${e.message}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        this@ProfileActivity,
+                        "Lỗi xử lý ảnh: ${e.message}",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
         }
@@ -226,8 +323,18 @@ class ProfileActivity : AppCompatActivity() {
                 val new = bindingDialog.edtNewPassword.text.toString().trim()
                 val confirm = bindingDialog.edtConfirmPassword.text.toString().trim()
 
-                if (current.isEmpty() || new.isEmpty() || new != confirm) {
-                    Toast.makeText(this, "Vui lòng kiểm tra lại mật khẩu", Toast.LENGTH_SHORT).show()
+                if (current.isEmpty() || new.isEmpty()) {
+                    Toast.makeText(this, "Vui lòng nhập mật khẩu", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+
+                if (new.length < 6) {
+                    Toast.makeText(this, "Mật khẩu mới phải có ít nhất 6 ký tự", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+
+                if (new != confirm) {
+                    Toast.makeText(this, "Mật khẩu xác nhận không khớp", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
 
@@ -247,19 +354,41 @@ class ProfileActivity : AppCompatActivity() {
             "newPassword" to new
         )
 
-        api.changePassword(body).enqueue(object : Callback<UserResponse> {
-            override fun onResponse(call: Call<UserResponse>, resp: Response<UserResponse>) {
+        api.changePassword(body).enqueue(object : Callback<ProfileResponse> {
+            override fun onResponse(call: Call<ProfileResponse>, resp: Response<ProfileResponse>) {
                 hideLoading()
-                if (resp.isSuccessful) {
-                    Toast.makeText(this@ProfileActivity, "Đổi mật khẩu thành công", Toast.LENGTH_SHORT).show()
+
+                if (resp.isSuccessful && resp.body() != null) {
+                    val response = resp.body()!!
+                    if (response.success) {
+                        Toast.makeText(
+                            this@ProfileActivity,
+                            response.message ?: "Đổi mật khẩu thành công",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    } else {
+                        Toast.makeText(
+                            this@ProfileActivity,
+                            response.message ?: "Đổi mật khẩu thất bại",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 } else {
-                    Toast.makeText(this@ProfileActivity, "Đổi mật khẩu thất bại", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        this@ProfileActivity,
+                        "Đổi mật khẩu thất bại: ${resp.code()}",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
 
-            override fun onFailure(call: Call<UserResponse>, t: Throwable) {
+            override fun onFailure(call: Call<ProfileResponse>, t: Throwable) {
                 hideLoading()
-                Toast.makeText(this@ProfileActivity, "Lỗi kết nối: ${t.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    this@ProfileActivity,
+                    "Lỗi kết nối: ${t.message}",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         })
     }
@@ -277,8 +406,8 @@ class ProfileActivity : AppCompatActivity() {
     }
 
     private fun takePhoto() {
-        val temp = File.createTempFile("camera_temp", ".jpg", cacheDir)
-        selectedImageUri = Uri.fromFile(temp)
+        val tempFile = File.createTempFile("camera_temp", ".jpg", cacheDir)
+        selectedImageUri = Uri.fromFile(tempFile)
         cameraLauncher.launch(selectedImageUri!!)
     }
 

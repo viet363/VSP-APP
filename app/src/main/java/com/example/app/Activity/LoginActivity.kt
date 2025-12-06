@@ -6,8 +6,9 @@ import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.example.app.Helper.TinyDB
+import com.example.app.Model.DirectLoginResponse
+import com.example.app.Model.NestedUserResponse
 import com.example.app.Model.UserData
-import com.example.app.Model.UserResponse
 import com.example.app.Network.AuthApi
 import com.example.app.Network.RetrofitClient
 import com.example.app.R
@@ -67,121 +68,7 @@ class LoginActivity : AppCompatActivity() {
         mGoogleSignInClient = GoogleSignIn.getClient(this, gso)
 
         binding.btnSignIn.setOnClickListener {
-            val username = binding.edtUsername.text.toString().trim()
-            val password = binding.edtPassword.text.toString().trim()
-
-            if (username.isEmpty() || password.isEmpty()) {
-                showToast("Vui lòng nhập đầy đủ thông tin")
-                return@setOnClickListener
-            }
-
-            val body = hashMapOf(
-                "username" to username,
-                "password" to password
-            )
-
-            Log.d(TAG, "Attempting login for username: $username")
-
-            if (!this::api.isInitialized) {
-                showToast("Lỗi kết nối. Vui lòng thử lại.")
-                return@setOnClickListener
-            }
-
-            // Thêm loading state
-            binding.btnSignIn.isEnabled = false
-            binding.btnSignIn.text = "Đang đăng nhập..."
-
-            api.login(body).enqueue(object : Callback<UserResponse> {
-                override fun onResponse(
-                    call: Call<UserResponse>,
-                    response: Response<UserResponse>
-                ) {
-                    binding.btnSignIn.isEnabled = true
-                    binding.btnSignIn.text = "Đăng nhập"
-
-                    Log.d(TAG, "Login response received - Code: ${response.code()}")
-
-                    if (response.isSuccessful) {
-                        val userResponse = response.body()
-                        Log.d(TAG, "Response body: $userResponse")
-
-                        // SỬA: Kiểm tra userResponse và lấy user trực tiếp
-                        if (userResponse != null && userResponse.success && userResponse.user != null) {
-                            val user = userResponse.user // ← Lấy user trực tiếp
-                            Log.i(TAG, "LOGIN SUCCESSFUL - User ID: ${user.id}")
-
-                            // THÊM DEBUG
-                            Log.d(TAG, "User ID before save: ${user.id}")
-                            Log.d(TAG, "User token before save: ${user.token?.take(20)}...")
-
-                            // Lưu thông tin người dùng
-                            saveUserData(user)
-
-                            // Chuyển đến MainActivity
-                            startActivity(Intent(this@LoginActivity, MainActivity::class.java))
-                            finish()
-                        } else {
-                            Log.e(TAG, "Login failed: success=false or user null")
-                            Log.e(TAG, "userResponse: $userResponse")
-                            Log.e(TAG, "userResponse.user: ${userResponse?.user}")
-
-                            try {
-                                val errorBody = response.errorBody()?.string()
-                                Log.e(TAG, "Error body: $errorBody")
-
-                                if (errorBody != null && errorBody.isNotEmpty()) {
-                                    val json = JSONObject(errorBody)
-                                    if (json.has("message")) {
-                                        showToast(json.getString("message"))
-                                    } else {
-                                        showToast("Đăng nhập thất bại")
-                                    }
-                                } else {
-                                    showToast("Đăng nhập thất bại: Response null")
-                                }
-                            } catch (e: Exception) {
-                                Log.e(TAG, "Error parsing response", e)
-                                showToast("Lỗi xử lý dữ liệu")
-                            }
-                        }
-                    } else {
-                        Log.e(TAG, "LOGIN FAILED - Code: ${response.code()}")
-                        try {
-                            val errorBody = response.errorBody()?.string()
-                            Log.e(TAG, "Error body: $errorBody")
-
-                            val errorMessage = if (errorBody != null && errorBody.isNotEmpty()) {
-                                try {
-                                    val json = JSONObject(errorBody)
-                                    if (json.has("message")) {
-                                        json.getString("message")
-                                    } else if (json.has("error")) {
-                                        json.getString("error")
-                                    } else {
-                                        "Đăng nhập thất bại (${response.code()})"
-                                    }
-                                } catch (e: Exception) {
-                                    "Đăng nhập thất bại (${response.code()})"
-                                }
-                            } else {
-                                "Đăng nhập thất bại (${response.code()})"
-                            }
-                            showToast(errorMessage)
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Error reading error body", e)
-                            showToast("Đăng nhập thất bại (${response.code()})")
-                        }
-                    }
-                }
-
-                override fun onFailure(call: Call<UserResponse>, t: Throwable) {
-                    binding.btnSignIn.isEnabled = true
-                    binding.btnSignIn.text = "Đăng nhập"
-
-                    Log.e(TAG, "Login failed: ${t.message}", t)
-                    showToast("Lỗi kết nối: ${t.message}")
-                }
-            })
+            handleLogin()
         }
 
         binding.btnSignUp.setOnClickListener {
@@ -189,18 +76,124 @@ class LoginActivity : AppCompatActivity() {
         }
 
         binding.btnGoogleSignIn.setOnClickListener {
-            if (!this::api.isInitialized) {
-                showToast("Lỗi kết nối. Vui lòng thử lại.")
-                return@setOnClickListener
-            }
-
-            val signInIntent = mGoogleSignInClient.signInIntent
-            startActivityForResult(signInIntent, RC_SIGN_IN)
+            handleGoogleSignIn()
         }
 
         binding.btnForgotPassword.setOnClickListener {
             showToast("Chức năng quên mật khẩu đang phát triển")
         }
+    }
+
+    private fun handleLogin() {
+        val username = binding.edtUsername.text.toString().trim()
+        val password = binding.edtPassword.text.toString().trim()
+
+        if (username.isEmpty() || password.isEmpty()) {
+            showToast("Vui lòng nhập đầy đủ thông tin")
+            return
+        }
+
+        val body = hashMapOf(
+            "username" to username,
+            "password" to password
+        )
+
+        Log.d(TAG, "Attempting login for username: $username")
+
+        if (!this::api.isInitialized) {
+            showToast("Lỗi kết nối. Vui lòng thử lại.")
+            return
+        }
+
+        // Thêm loading state
+        binding.btnSignIn.isEnabled = false
+        binding.btnSignIn.text = "Đang đăng nhập..."
+
+        api.login(body).enqueue(object : Callback<DirectLoginResponse> {
+            override fun onResponse(
+                call: Call<DirectLoginResponse>,
+                response: Response<DirectLoginResponse>
+            ) {
+                binding.btnSignIn.isEnabled = true
+                binding.btnSignIn.text = "Đăng nhập"
+
+                Log.d(TAG, "Login response received - Code: ${response.code()}")
+
+                if (response.isSuccessful) {
+                    val loginResponse = response.body()
+                    Log.d(TAG, "Response body: $loginResponse")
+
+                    if (loginResponse != null && loginResponse.success) {
+                        // CHUYỂN ĐỔI DirectLoginResponse sang UserData
+                        val user = loginResponse.toUserData()
+                        Log.i(TAG, "LOGIN SUCCESSFUL - User ID: ${user.id}")
+
+                        // DEBUG
+                        Log.d(TAG, "User ID before save: ${user.id}")
+                        Log.d(TAG, "User token before save: ${user.token?.take(20)}...")
+
+                        // Lưu thông tin người dùng
+                        saveUserData(user)
+
+                        // Chuyển đến MainActivity
+                        startActivity(Intent(this@LoginActivity, MainActivity::class.java))
+                        finish()
+                    } else {
+                        Log.e(TAG, "Login failed: success=false or response null")
+                        showToast("Đăng nhập thất bại: Sai tên đăng nhập hoặc mật khẩu")
+                    }
+                } else {
+                    handleLoginError(response)
+                }
+            }
+
+            override fun onFailure(call: Call<DirectLoginResponse>, t: Throwable) {
+                binding.btnSignIn.isEnabled = true
+                binding.btnSignIn.text = "Đăng nhập"
+
+                Log.e(TAG, "Login failed: ${t.message}", t)
+                showToast("Lỗi kết nối: ${t.message}")
+            }
+        })
+    }
+
+    private fun handleLoginError(response: Response<DirectLoginResponse>) {
+        Log.e(TAG, "LOGIN FAILED - Code: ${response.code()}")
+        try {
+            val errorBody = response.errorBody()?.string()
+            Log.e(TAG, "Error body: $errorBody")
+
+            val errorMessage = if (errorBody != null && errorBody.isNotEmpty()) {
+                try {
+                    val json = JSONObject(errorBody)
+                    if (json.has("message")) {
+                        json.getString("message")
+                    } else if (json.has("error")) {
+                        json.getString("error")
+                    } else {
+                        "Đăng nhập thất bại (${response.code()})"
+                    }
+                } catch (e: Exception) {
+                    "Đăng nhập thất bại (${response.code()})"
+                }
+            } else {
+                "Đăng nhập thất bại (${response.code()})"
+            }
+            showToast(errorMessage)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error reading error body", e)
+            showToast("Đăng nhập thất bại (${response.code()})")
+        }
+    }
+
+    private fun handleGoogleSignIn() {
+        if (!this::api.isInitialized) {
+            showToast("Lỗi kết nối. Vui lòng thử lại.")
+            return
+        }
+
+        val signInIntent = mGoogleSignInClient.signInIntent
+        startActivityForResult(signInIntent, RC_SIGN_IN)
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -222,25 +215,23 @@ class LoginActivity : AppCompatActivity() {
                     val body = hashMapOf("idToken" to idToken)
                     Log.d(TAG, "Sending Google login request with token length: ${idToken.length}")
 
-                    // SỬA: Dùng UserResponse thay vì LoginResponse
-                    api.loginGoogle(body).enqueue(object : Callback<UserResponse> {
+                    api.loginGoogle(body).enqueue(object : Callback<NestedUserResponse> {
                         override fun onResponse(
-                            call: Call<UserResponse>,
-                            response: Response<UserResponse>
+                            call: Call<NestedUserResponse>,
+                            response: Response<NestedUserResponse>
                         ) {
                             Log.d(TAG, "Google login response code: ${response.code()}")
 
                             if (response.isSuccessful) {
                                 val userResponse = response.body()
 
-                                // THÊM DEBUG CHI TIẾT
-                                Log.d(TAG, "UserResponse: $userResponse")
-                                Log.d(TAG, "UserResponse.success: ${userResponse?.success}")
-                                Log.d(TAG, "UserResponse.user: ${userResponse?.user}")
+                                // DEBUG CHI TIẾT
+                                Log.d(TAG, "NestedUserResponse: $userResponse")
+                                Log.d(TAG, "NestedUserResponse.success: ${userResponse?.success}")
+                                Log.d(TAG, "NestedUserResponse.user: ${userResponse?.user}")
 
-                                // SỬA: Kiểm tra userResponse và lấy user trực tiếp
                                 if (userResponse?.success == true && userResponse.user != null) {
-                                    val user = userResponse.user // ← Lấy user trực tiếp
+                                    val user = userResponse.user
 
                                     // DEBUG: Kiểm tra giá trị
                                     Log.d(TAG, "Google login - User ID: ${user.id}")
@@ -267,7 +258,7 @@ class LoginActivity : AppCompatActivity() {
                             }
                         }
 
-                        override fun onFailure(call: Call<UserResponse>, t: Throwable) {
+                        override fun onFailure(call: Call<NestedUserResponse>, t: Throwable) {
                             Log.e(TAG, "Google login network error", t)
                             showToast("Lỗi kết nối: ${t.message}")
                         }

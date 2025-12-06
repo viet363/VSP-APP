@@ -17,7 +17,17 @@ data class UserData(
     @SerializedName("loginType") val loginType: String?
 )
 
-data class LoginResponse(
+data class RegisterResponse(
+    @SerializedName("success") val success: Boolean,
+    @SerializedName("message") val message: String?,
+    @SerializedName("id") val id: Long?,
+    @SerializedName("username") val username: String?,
+    @SerializedName("email") val email: String?,
+    @SerializedName("fullname") val fullname: String?,
+    @SerializedName("token") val token: String?
+)
+
+data class DirectLoginResponse(
     @SerializedName("success") val success: Boolean,
     @SerializedName("id") val id: Long?,
     @SerializedName("username") val username: String?,
@@ -48,17 +58,12 @@ data class LoginResponse(
     )
 }
 
-data class UserResponse(
+data class ProfileResponse(
+    @SerializedName("success") val success: Boolean,
+    @SerializedName("user") val user: UserData?,
+    @SerializedName("message") val message: String? = null
+)
+data class NestedUserResponse(
     @SerializedName("success") val success: Boolean,
     @SerializedName("user") val user: UserData?
-)
-
-data class RegisterResponse(
-    @SerializedName("success") val success: Boolean,
-    @SerializedName("message") val message: String?,
-    @SerializedName("id") val id: Long?,
-    @SerializedName("username") val username: String?,
-    @SerializedName("email") val email: String?,
-    @SerializedName("fullname") val fullname: String?,
-    @SerializedName("token") val token: String?
 )

@@ -9,7 +9,6 @@ import androidx.lifecycle.Observer
 import androidx.recyclerview.widget.GridLayoutManager
 import com.example.app.Adapter.ListItemsAdapter
 import com.example.app.Helper.TinyDB
-import com.example.app.Model.ItemsModel
 import com.example.app.ViewModel.MainViewModel
 import com.example.app.databinding.ActivityListItemsBinding
 
@@ -38,7 +37,6 @@ class ListItemsActivity : AppCompatActivity() {
             setupSearchObservers()
             callSearchApi(searchQuery)
         } else {
-            // Không phải search, load bình thường
             setupRecommendedObserver()
             initList()
         }
@@ -94,20 +92,49 @@ class ListItemsActivity : AppCompatActivity() {
     private fun setupRecommendedObserver() {
         // Quan sát recommended products
         viewModel.recommended.observe(this, Observer { items ->
-            Log.d(TAG, "Recommended products received: ${items?.size ?: 0} items")
+            Log.d(TAG, "Products received: ${items?.size ?: 0} items")
 
             if (viewModel.isLoading.value == false) {
                 binding.progressBarList.visibility = View.GONE
 
                 if (!items.isNullOrEmpty()) {
+                    // Hiển thị thông tin chi tiết về nguồn sản phẩm
                     viewModel.isShowingFallback.value?.let { isFallback ->
-                        if (isFallback && title.isEmpty()) {
-                            binding.categoryTxt.text = "Sản phẩm nổi bật"
+                        if (isFallback) {
+                            // Có sử dụng sản phẩm bổ sung
+                            if (title.isNotEmpty()) {
+                                // Nếu có title từ danh mục
+                                binding.categoryTxt.text = "$title (${items.size} sản phẩm)"
+                            } else {
+                                // Sản phẩm đề xuất + bổ sung
+                                val recommendedCount = items.count { it.isRecommended }
+                                val additionalCount = items.size - recommendedCount
+
+                                if (recommendedCount > 0 && additionalCount > 0) {
+                                    binding.categoryTxt.text = "Sản phẩm đề xuất ($recommendedCount) + bổ sung ($additionalCount)"
+                                } else if (recommendedCount > 0) {
+                                    binding.categoryTxt.text = "Sản phẩm đề xuất ($recommendedCount sản phẩm)"
+                                } else {
+                                    binding.categoryTxt.text = "Sản phẩm nổi bật (${items.size} sản phẩm)"
+                                }
+                            }
+                        } else {
+                            // Chỉ có sản phẩm đề xuất (không cần bổ sung)
+                            if (title.isNotEmpty()) {
+                                binding.categoryTxt.text = "$title (${items.size} sản phẩm)"
+                            } else {
+                                binding.categoryTxt.text = "Sản phẩm đề xuất cho bạn (${items.size} sản phẩm)"
+                            }
                         }
                     }
 
+                    // Hiển thị danh sách sản phẩm
                     binding.viewList.layoutManager = GridLayoutManager(this, 2)
                     binding.viewList.adapter = ListItemsAdapter(items.toMutableList())
+
+                    // Log thông tin chi tiết
+                    val recommendedCount = items.count { it.isRecommended }
+                    Log.d(TAG, "✅ Hiển thị: ${items.size} sản phẩm (${recommendedCount} đề xuất, ${items.size - recommendedCount} bổ sung)")
                 } else {
                     binding.categoryTxt.text = "Không có sản phẩm"
                     binding.viewList.adapter = null
@@ -115,13 +142,23 @@ class ListItemsActivity : AppCompatActivity() {
             }
         })
 
-        // Quan sát trạng thái loading
         viewModel.isLoading.observe(this, Observer { isLoading ->
-            if (!isLoading) {
+            if (isLoading) {
+                binding.progressBarList.visibility = View.VISIBLE
+                if (title.isNotEmpty()) {
+                    binding.categoryTxt.text = "Đang tải sản phẩm..."
+                } else {
+                    binding.categoryTxt.text = "Đang tải sản phẩm đề xuất..."
+                }
+            } else {
                 val items = viewModel.recommended.value
                 if (items.isNullOrEmpty()) {
                     binding.progressBarList.visibility = View.GONE
-                    binding.categoryTxt.text = "Không có sản phẩm"
+                    if (title.isNotEmpty()) {
+                        binding.categoryTxt.text = "$title (Không có sản phẩm)"
+                    } else {
+                        binding.categoryTxt.text = "Không có sản phẩm"
+                    }
                 }
             }
         })
@@ -131,7 +168,13 @@ class ListItemsActivity : AppCompatActivity() {
             error?.let {
                 Log.e(TAG, "Load products error: $it")
                 binding.progressBarList.visibility = View.GONE
-                binding.categoryTxt.text = "Lỗi tải sản phẩm: $it"
+
+                if (title.isNotEmpty()) {
+                    binding.categoryTxt.text = "Lỗi tải $title: $it"
+                } else {
+                    binding.categoryTxt.text = "Lỗi tải sản phẩm: $it"
+                }
+
                 viewModel.clearError()
             }
         })
@@ -151,16 +194,32 @@ class ListItemsActivity : AppCompatActivity() {
             backBtn.setOnClickListener { finish() }
 
             progressBarList.visibility = View.VISIBLE
-            categoryTxt.text = title
+
+            if (title.isNotEmpty()) {
+                categoryTxt.text = title
+            } else {
+                categoryTxt.text = "Đang tải sản phẩm đề xuất..."
+            }
 
             if (id.isNotEmpty()) {
+                // Load theo danh mục
                 Log.d(TAG, "Load items for category ID = $id")
                 viewModel.loadFiltered(id)
             } else {
-                Log.d(TAG, "Loading recommended items...")
+                // Load sản phẩm đề xuất + bổ sung
+                Log.d(TAG, "Loading recommended items with fallback...")
                 val tinyDB = TinyDB(this@ListItemsActivity)
                 val userId = tinyDB.getLong("userId")
-                viewModel.loadRecommended(userId)
+
+                Log.d(TAG, "User ID from TinyDB: $userId")
+
+                if (userId > 0) {
+                    viewModel.loadRecommended(userId)
+                } else {
+                    Log.d(TAG, "No user ID found, loading popular products")
+                    binding.categoryTxt.text = "Sản phẩm phổ biến"
+                    viewModel.loadFallbackProducts(15)
+                }
             }
         }
     }
@@ -170,6 +229,6 @@ class ListItemsActivity : AppCompatActivity() {
         title = intent.getStringExtra("title") ?: ""
         searchQuery = intent.getStringExtra("searchQuery") ?: ""
 
-        Log.d(TAG, "Received: id=$id, title=$title, searchQuery=$searchQuery")
+        Log.d(TAG, "Received: id=$id, title='$title', searchQuery='$searchQuery'")
     }
 }

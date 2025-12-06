@@ -25,7 +25,8 @@ data class ItemsModel(
     val picUrl: List<String>,
     val rating: Double? = 0.0,
     val score: Float? = 0f,
-    var numberInCart: Int = 1
+    var numberInCart: Int = 1,
+    val isRecommended: Boolean = false
 ) : Serializable {
 
     constructor(r: RecommendedProduct) : this(
@@ -35,6 +36,8 @@ data class ItemsModel(
         price = r.Price,
         picUrl = if (!r.picUrl.isNullOrEmpty()) listOf(r.picUrl) else emptyList(),
         score = r.Score ?: 0f,
-        numberInCart = 1
+        numberInCart = 1,
+        isRecommended = true
     )
 }
+
