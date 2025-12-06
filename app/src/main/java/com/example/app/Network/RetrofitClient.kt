@@ -1,3 +1,4 @@
+// RetrofitClient.kt
 package com.example.app.Network
 
 import android.content.Context
@@ -19,6 +20,11 @@ object RetrofitClient {
 
     private lateinit var appContext: Context
     private lateinit var baseUrl: String
+
+    // Thêm property retrofit
+    private val retrofit: Retrofit by lazy {
+        getPublicClient()
+    }
 
     fun init(context: Context) {
         appContext = context.applicationContext
@@ -82,6 +88,10 @@ object RetrofitClient {
             .build()
     }
 
+    fun create(): ApiInterface {
+        return retrofit.create(ApiInterface::class.java)
+    }
+
     fun authApi(): AuthApi = getPublicClient().create(AuthApi::class.java)
     fun userApi(): UserApi = getAuthClient().create(UserApi::class.java)
     fun categoriesApi(): CategoriesApi = getPublicClient().create(CategoriesApi::class.java)
@@ -90,4 +100,6 @@ object RetrofitClient {
     fun ordersApi(): OrdersApi = getAuthClient().create(OrdersApi::class.java)
     fun paymentApi(): PaymentApi = getAuthClient().create(PaymentApi::class.java)
     fun cartApi(): CartApi = getAuthClient().create(CartApi::class.java)
+    fun chatApi(): ChatApi = getAuthClient().create(ChatApi::class.java)
+
 }

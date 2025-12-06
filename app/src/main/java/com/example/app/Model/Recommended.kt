@@ -19,7 +19,7 @@ data class RecommendedProduct(
 
 data class ItemsModel(
     val id: Int,
-    val title: String,
+    val title: String?,
     val description: String?,
     val price: Double,
     val picUrl: List<String>,

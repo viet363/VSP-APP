@@ -1,4 +1,4 @@
-// SearchAdapter.kt
+// SearchAdapter.kt - PHIÊN BẢN ĐÃ SỬA
 package com.example.app.Adapter
 
 import android.view.LayoutInflater
@@ -11,7 +11,10 @@ import com.bumptech.glide.Glide
 import com.example.app.Model.ItemsModel
 import com.example.app.R
 
-class SearchAdapter(private var items: MutableList<ItemsModel>) : RecyclerView.Adapter<SearchAdapter.ViewHolder>() {
+class SearchAdapter(
+    private var items: MutableList<ItemsModel>,
+    private val onItemClick: (ItemsModel) -> Unit = {}  // THÊM DÒNG NÀY
+) : RecyclerView.Adapter<SearchAdapter.ViewHolder>() {
 
     class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val image: ImageView = itemView.findViewById(R.id.imageView)
@@ -27,13 +30,18 @@ class SearchAdapter(private var items: MutableList<ItemsModel>) : RecyclerView.A
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val item = items[position]
-        holder.title.text = item.title
+        holder.title.text = item.title ?: "Không có tên"
         holder.price.text = "đ${item.price}"
 
         if (item.picUrl.isNotEmpty()) {
             Glide.with(holder.itemView.context)
                 .load(item.picUrl[0])
                 .into(holder.image)
+        }
+
+        // THÊM CLICK LISTENER
+        holder.itemView.setOnClickListener {
+            onItemClick(item)
         }
     }
 

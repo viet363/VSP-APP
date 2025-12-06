@@ -13,8 +13,7 @@ import com.example.app.Adapter.CategoryAdapter
 import com.example.app.Adapter.RecommendedAdapter
 import com.example.app.Adapter.SliderAdapter
 import com.example.app.Helper.TinyDB
-import com.example.app.Model.CategoryModel
-import com.example.app.Model.SliderModel
+import com.example.app.Model.*
 import com.example.app.ViewModel.MainViewModel
 import com.example.app.databinding.ActivityMainBinding
 
@@ -35,9 +34,12 @@ class MainActivity : BaseActivity() {
 
         tinyDB = TinyDB(this)
 
-        val userId = tinyDB.getString("userId", "")
+        // SỬA: getLong() trả về Long, không phải String
+        val userId = tinyDB.getLong("userId", 0L) // Sửa default value là 0L (Long)
+        Log.d(TAG, "Retrieved user ID (Long): $userId")
 
-        if (userId.isEmpty()) {
+        // SỬA: So sánh với 0L thay vì isEmpty()
+        if (userId == 0L) {
             Log.w(TAG, "User ID is empty or not found, redirecting to LoginActivity")
             startActivity(Intent(this, LoginActivity::class.java))
             finish()
@@ -51,9 +53,16 @@ class MainActivity : BaseActivity() {
 
         initBanner()
         initCategory()
-        initRecommended(userId)
+        initRecommended(userId) // Truyền userId (Long) thay vì String
         initBottomMenu()
         initSearch()
+
+        // Quan sát lỗi
+        viewModel.errorMessage.observe(this) { error ->
+            error?.let {
+                Log.e(TAG, "ViewModel error: $it")
+            }
+        }
     }
 
     private fun initSearch() {
@@ -70,17 +79,14 @@ class MainActivity : BaseActivity() {
             if (query.isEmpty()) {
                 Toast.makeText(this, "Vui lòng nhập tên sản phẩm", Toast.LENGTH_SHORT).show()
             } else {
-                viewModel.searchProducts(query)
-
-                viewModel.searchResults.observe(this) { results ->
-                    Log.d(TAG, "Search results: ${results.size} items")
-                }
-
-                val intent = Intent(this, ListItemsActivity::class.java)
+                // MỞ SearchActivity thay vì ListItemsActivity
+                val intent = Intent(this, SearchActivity::class.java)
                 intent.putExtra("searchQuery", query)
                 startActivity(intent)
+                overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
             }
 
+            // Reset UI
             binding.searchView.setQuery("", false)
             binding.searchView.visibility = View.GONE
             binding.btnSearchSubmit.visibility = View.GONE
@@ -88,30 +94,44 @@ class MainActivity : BaseActivity() {
         }
     }
 
-    private fun initRecommended(userId: String) {
+    // SỬA: Thay đổi parameter từ String sang Long
+    private fun initRecommended(userId: Long) {
         binding.progressBarRecommend.visibility = View.VISIBLE
         binding.viewRecommendation.layoutManager = GridLayoutManager(this, 2)
 
-        viewModel.recommended.observe(this) { items ->
-            binding.progressBarRecommend.visibility = View.GONE
-            if (items.isNotEmpty()) {
-                Log.d(TAG, "Recommended items loaded: ${items.size} items")
-                binding.viewRecommendation.adapter = RecommendedAdapter(items.toMutableList())
+        // Set adapter rỗng ban đầu
+        binding.viewRecommendation.adapter = RecommendedAdapter(mutableListOf())
+
+        // Quan sát xem đang hiển thị loại sản phẩm nào
+        viewModel.isShowingFallback.observe(this) { isFallback ->
+            if (isFallback) {
+                binding.recommendedTitle.text = "Sản phẩm từ các danh mục"
             } else {
-                Log.d(TAG, "No recommended items found")
-                Toast.makeText(this, "Không có sản phẩm đề xuất", Toast.LENGTH_SHORT).show()
+                binding.recommendedTitle.text = "Sản phẩm đề xuất cho bạn"
             }
         }
 
-        val userIdLong = try {
-            userId.toLong()
-        } catch (e: NumberFormatException) {
-            Log.e(TAG, "Invalid user ID format: $userId", e)
-            0L
+        viewModel.recommended.observe(this) { items ->
+            binding.progressBarRecommend.visibility = View.GONE
+
+            if (items.isNotEmpty()) {
+                Log.d(TAG, "Đang hiển thị ${items.size} sản phẩm")
+
+                binding.viewRecommendation.adapter = RecommendedAdapter(items.toMutableList())
+                binding.recommendedTitle.visibility = View.VISIBLE
+                binding.viewRecommendation.visibility = View.VISIBLE
+                binding.emptyRecommended.visibility = View.GONE
+            } else {
+                Log.d(TAG, "Không có sản phẩm nào để hiển thị")
+                binding.recommendedTitle.visibility = View.GONE
+                binding.viewRecommendation.visibility = View.GONE
+                binding.emptyRecommended.visibility = View.VISIBLE
+                binding.emptyRecommended.text = "Không có sản phẩm nào"
+            }
         }
 
-        if (userIdLong > 0L) {
-            viewModel.loadRecommended(userIdLong)
+        if (userId > 0L) {
+            viewModel.loadRecommended(userId)
         } else {
             binding.progressBarRecommend.visibility = View.GONE
             Toast.makeText(this, "Lỗi: ID người dùng không hợp lệ", Toast.LENGTH_SHORT).show()
@@ -147,21 +167,30 @@ class MainActivity : BaseActivity() {
     private fun initBanner() {
         binding.progressBarSlider.visibility = View.VISIBLE
 
-        val fakeBanners = listOf(
-            SliderModel("banner1.png"),
-            SliderModel("banner2.png")
-        )
-        showBanner(fakeBanners)
+        viewModel.banners.observe(this) { banners ->
+            binding.progressBarSlider.visibility = View.GONE
+
+            if (banners.isNotEmpty()) {
+                showBanner(banners)
+            } else {
+                // Hiển thị banner mặc định nếu không có từ API
+                val fakeBanners = listOf(
+                    SliderModel("banner1.png"),
+                    SliderModel("banner2.png")
+                )
+                showBanner(fakeBanners)
+            }
+        }
     }
 
     private fun showBanner(images: List<SliderModel>) {
-        binding.progressBarSlider.visibility = View.GONE
-
         if (images.isEmpty()) {
             Log.w(TAG, "No banner images to show")
+            binding.viewPager2.visibility = View.GONE
             return
         }
 
+        binding.viewPager2.visibility = View.VISIBLE
         val adapter = SliderAdapter(images, binding.viewPager2)
         binding.viewPager2.adapter = adapter
         binding.viewPager2.clipToPadding = false

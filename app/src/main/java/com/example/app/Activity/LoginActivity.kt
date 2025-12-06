@@ -6,8 +6,8 @@ import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.example.app.Helper.TinyDB
-import com.example.app.Model.LoginResponse
 import com.example.app.Model.UserData
+import com.example.app.Model.UserResponse
 import com.example.app.Network.AuthApi
 import com.example.app.Network.RetrofitClient
 import com.example.app.R
@@ -91,26 +91,28 @@ class LoginActivity : AppCompatActivity() {
             binding.btnSignIn.isEnabled = false
             binding.btnSignIn.text = "Đang đăng nhập..."
 
-            // SỬA: Sử dụng LoginResponse thay vì UserResponse
-            api.login(body).enqueue(object : Callback<LoginResponse> {
+            api.login(body).enqueue(object : Callback<UserResponse> {
                 override fun onResponse(
-                    call: Call<LoginResponse>,
-                    response: Response<LoginResponse>
+                    call: Call<UserResponse>,
+                    response: Response<UserResponse>
                 ) {
                     binding.btnSignIn.isEnabled = true
                     binding.btnSignIn.text = "Đăng nhập"
 
                     Log.d(TAG, "Login response received - Code: ${response.code()}")
-                    Log.d(TAG, "Response headers: ${response.headers()}")
 
                     if (response.isSuccessful) {
-                        val loginResponse = response.body()
-                        Log.d(TAG, "Response body: $loginResponse")
+                        val userResponse = response.body()
+                        Log.d(TAG, "Response body: $userResponse")
 
-                        if (loginResponse != null && loginResponse.success) {
-                            // SỬA: Tạo UserData từ LoginResponse
-                            val user = loginResponse.toUserData()
+                        // SỬA: Kiểm tra userResponse và lấy user trực tiếp
+                        if (userResponse != null && userResponse.success && userResponse.user != null) {
+                            val user = userResponse.user // ← Lấy user trực tiếp
                             Log.i(TAG, "LOGIN SUCCESSFUL - User ID: ${user.id}")
+
+                            // THÊM DEBUG
+                            Log.d(TAG, "User ID before save: ${user.id}")
+                            Log.d(TAG, "User token before save: ${user.token?.take(20)}...")
 
                             // Lưu thông tin người dùng
                             saveUserData(user)
@@ -119,7 +121,9 @@ class LoginActivity : AppCompatActivity() {
                             startActivity(Intent(this@LoginActivity, MainActivity::class.java))
                             finish()
                         } else {
-                            Log.e(TAG, "Login failed: success=false or response null")
+                            Log.e(TAG, "Login failed: success=false or user null")
+                            Log.e(TAG, "userResponse: $userResponse")
+                            Log.e(TAG, "userResponse.user: ${userResponse?.user}")
 
                             try {
                                 val errorBody = response.errorBody()?.string()
@@ -170,7 +174,7 @@ class LoginActivity : AppCompatActivity() {
                     }
                 }
 
-                override fun onFailure(call: Call<LoginResponse>, t: Throwable) {
+                override fun onFailure(call: Call<UserResponse>, t: Throwable) {
                     binding.btnSignIn.isEnabled = true
                     binding.btnSignIn.text = "Đăng nhập"
 
@@ -218,18 +222,30 @@ class LoginActivity : AppCompatActivity() {
                     val body = hashMapOf("idToken" to idToken)
                     Log.d(TAG, "Sending Google login request with token length: ${idToken.length}")
 
-                    // SỬA: Sử dụng LoginResponse cho Google login
-                    api.loginGoogle(body).enqueue(object : Callback<LoginResponse> {
+                    // SỬA: Dùng UserResponse thay vì LoginResponse
+                    api.loginGoogle(body).enqueue(object : Callback<UserResponse> {
                         override fun onResponse(
-                            call: Call<LoginResponse>,
-                            response: Response<LoginResponse>
+                            call: Call<UserResponse>,
+                            response: Response<UserResponse>
                         ) {
                             Log.d(TAG, "Google login response code: ${response.code()}")
 
                             if (response.isSuccessful) {
-                                val loginResponse = response.body()
-                                if (loginResponse?.success == true) {
-                                    val user = loginResponse.toUserData()
+                                val userResponse = response.body()
+
+                                // THÊM DEBUG CHI TIẾT
+                                Log.d(TAG, "UserResponse: $userResponse")
+                                Log.d(TAG, "UserResponse.success: ${userResponse?.success}")
+                                Log.d(TAG, "UserResponse.user: ${userResponse?.user}")
+
+                                // SỬA: Kiểm tra userResponse và lấy user trực tiếp
+                                if (userResponse?.success == true && userResponse.user != null) {
+                                    val user = userResponse.user // ← Lấy user trực tiếp
+
+                                    // DEBUG: Kiểm tra giá trị
+                                    Log.d(TAG, "Google login - User ID: ${user.id}")
+                                    Log.d(TAG, "Google login - User username: ${user.username}")
+                                    Log.d(TAG, "Google login - User email: ${user.email}")
 
                                     // Lưu thông tin user
                                     saveUserData(user)
@@ -241,7 +257,7 @@ class LoginActivity : AppCompatActivity() {
 
                                     showToast("Đăng nhập Google thành công")
                                 } else {
-                                    Log.e(TAG, "Google login failed: success=false")
+                                    Log.e(TAG, "Google login failed: success=false or user null")
                                     showToast("Đăng nhập Google thất bại")
                                 }
                             } else {
@@ -251,7 +267,7 @@ class LoginActivity : AppCompatActivity() {
                             }
                         }
 
-                        override fun onFailure(call: Call<LoginResponse>, t: Throwable) {
+                        override fun onFailure(call: Call<UserResponse>, t: Throwable) {
                             Log.e(TAG, "Google login network error", t)
                             showToast("Lỗi kết nối: ${t.message}")
                         }
@@ -269,19 +285,38 @@ class LoginActivity : AppCompatActivity() {
 
     private fun saveUserData(user: UserData) {
         try {
+            Log.d(TAG, "=== SAVE USER DATA DEBUG ===")
+            Log.d(TAG, "User object: $user")
+            Log.d(TAG, "User ID: ${user.id}, Type: ${user.id::class.java}")
+            Log.d(TAG, "User email: ${user.email}")
+            Log.d(TAG, "User token: ${user.token?.take(20)}...")
+
             // Lưu token
             if (user.token != null) {
                 tinyDB.putString("token", user.token!!)
                 Log.d(TAG, "Token saved: ${user.token!!.take(20)}...")
+            } else {
+                Log.e(TAG, "Token is null!")
             }
 
             // Lưu user ID
             tinyDB.putLong("userId", user.id)
             Log.d(TAG, "User ID saved: ${user.id}")
 
+            // Đọc lại để xác nhận
+            val savedId = tinyDB.getLong("userId", -1L)
+            Log.d(TAG, "Read back user ID from SharedPreferences: $savedId")
+
+            if (savedId == -1L || savedId == 0L) {
+                Log.e(TAG, "ERROR: User ID not saved correctly!")
+            }
+
             // Lưu thông tin profile
             tinyDB.putString("username", user.username)
+            Log.d(TAG, "Username saved: ${user.username}")
+
             tinyDB.putString("email", user.email ?: "")
+            Log.d(TAG, "Email saved: ${user.email ?: "null"}")
 
             if (user.fullname != null) {
                 tinyDB.putString("fullname", user.fullname!!)
@@ -290,12 +325,15 @@ class LoginActivity : AppCompatActivity() {
 
             if (user.avatar != null) {
                 tinyDB.putString("avatar", user.avatar!!)
+                Log.d(TAG, "Avatar saved: ${user.avatar!!}")
             }
 
             if (user.loginType != null) {
                 tinyDB.putString("loginType", user.loginType!!)
+                Log.d(TAG, "Login type saved: ${user.loginType!!}")
             }
 
+            Log.d(TAG, "=== END SAVE DEBUG ===")
             Log.d(TAG, "User data saved successfully")
         } catch (e: Exception) {
             Log.e(TAG, "Error saving user data", e)

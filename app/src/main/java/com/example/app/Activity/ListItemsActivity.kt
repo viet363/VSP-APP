@@ -26,49 +26,64 @@ class ListItemsActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         binding = ActivityListItemsBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // Lấy dữ liệu từ intent
         getBundle()
-        initList()
+
+        // Nếu có searchQuery, gọi API search
+        if (searchQuery.isNotEmpty()) {
+            callSearchApi(searchQuery)
+        } else {
+            // Không phải search, load bình thường
+            initList()
+        }
+    }
+
+    private fun callSearchApi(query: String) {
+        Log.d(TAG, "Calling search API for query: $query")
+        binding.progressBarList.visibility = View.VISIBLE
+        binding.categoryTxt.text = "Đang tìm kiếm: $query"
+
+        viewModel.searchItems(query).observe(this, Observer<MainViewModel.ApiResponse<List<ItemsModel>>> { result ->
+            binding.progressBarList.visibility = View.GONE
+
+            if (result.success) {
+                Log.d(TAG, "Search API success: ${result.data?.size ?: 0} items")
+
+                if (!result.data.isNullOrEmpty()) {
+                    binding.categoryTxt.text = "Kết quả cho: $query"
+
+                    // Hiển thị kết quả
+                    binding.viewList.layoutManager = GridLayoutManager(this, 2)
+                    binding.viewList.adapter = ListItemsAdapter(result.data.toMutableList())
+                } else {
+                    binding.categoryTxt.text = "Không tìm thấy sản phẩm"
+                }
+            } else {
+                Log.e(TAG, "Search API failed: ${result.message}")
+                binding.categoryTxt.text = "Lỗi tìm kiếm: ${result.message}"
+            }
+        })
     }
 
     private fun initList() {
         binding.apply {
-
             backBtn.setOnClickListener { finish() }
+
             progressBarList.visibility = View.VISIBLE
-
-            if (searchQuery.isNotEmpty()) {
-                val searchResults = intent.getSerializableExtra("searchResults") as? ArrayList<ItemsModel>
-
-                Log.d(TAG, "searchResults('$searchQuery'): ${searchResults?.size ?: 0}")
-
-                viewList.layoutManager = GridLayoutManager(this@ListItemsActivity, 2)
-
-                if (!searchResults.isNullOrEmpty()) {
-                    viewList.adapter = ListItemsAdapter(searchResults.toMutableList())
-                    categoryTxt.text = "Kết quả cho: $searchQuery"
-                } else {
-                    categoryTxt.text = "Không tìm thấy sản phẩm"
-                }
-
-                progressBarList.visibility = View.GONE
-                return
-            }
-
             categoryTxt.text = title
 
             viewModel.recommended.observe(this@ListItemsActivity, Observer { items ->
                 viewList.layoutManager = GridLayoutManager(this@ListItemsActivity, 2)
                 viewList.adapter = ListItemsAdapter(items.toMutableList())
-
                 progressBarList.visibility = View.GONE
             })
 
             if (id.isNotEmpty()) {
                 Log.d(TAG, "Load items for category ID = $id")
-                // Sửa lỗi 2: Truyền trực tiếp id (đã là String)
                 viewModel.loadFiltered(id)
             } else {
                 Log.d(TAG, "Loading recommended items...")
@@ -76,7 +91,6 @@ class ListItemsActivity : AppCompatActivity() {
                 val userId = tinyDB.getLong("userId")
                 viewModel.loadRecommended(userId)
             }
-
         }
     }
 
@@ -86,9 +100,5 @@ class ListItemsActivity : AppCompatActivity() {
         searchQuery = intent.getStringExtra("searchQuery") ?: ""
 
         Log.d(TAG, "Received: id=$id, title=$title, searchQuery=$searchQuery")
-
-        if (searchQuery.isEmpty()) {
-            binding.categoryTxt.text = title
-        }
     }
 }
