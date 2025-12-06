@@ -132,10 +132,19 @@ class ManagmentCart(private val context: Context) {
         }
     }
 
+    // ===== THÊM METHOD clearCart() Ở ĐÂY =====
+    fun clearCart() {
+        // Xóa giỏ hàng local
+        tinyDB.remove(cartKey)
+        Log.d(TAG, "Cleared local cart (using clearCart method)")
+    }
+
     fun clearLocalCart() {
+        // Phương thức này vẫn giữ để tương thích
         tinyDB.remove(cartKey)
         Log.d(TAG, "Cleared local cart")
     }
+    // ========================================
 
     fun getCartCount(): Int {
         return getLocalCart().sumOf { it.quantity }

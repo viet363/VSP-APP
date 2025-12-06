@@ -1,7 +1,10 @@
 package com.example.app.Activity
 
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
+import android.view.View
+import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -9,9 +12,16 @@ import com.bumptech.glide.Glide
 import com.example.app.Adapter.CommentAdapter
 import com.example.app.Adapter.PicAdapter
 import com.example.app.Adapter.SpecificationAdapter
+import com.example.app.Helper.TinyDB
+import com.example.app.Model.CommonResponse
 import com.example.app.Model.ItemsModel
+import com.example.app.Network.RetrofitClient
 import com.example.app.databinding.ActivityDetailBinding
 import com.example.app.ViewModel.MainViewModel
+import org.json.JSONObject
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
 
 class DetailActivity : AppCompatActivity() {
 
@@ -20,6 +30,8 @@ class DetailActivity : AppCompatActivity() {
 
     private var productId: Int = -1
     private var item: ItemsModel? = null
+
+    private lateinit var commentAdapter: CommentAdapter
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -31,7 +43,10 @@ class DetailActivity : AppCompatActivity() {
         getIntentData()
         initUI()
         initObservers()
+        initClickListeners()
         loadData()
+        setupCommentList()
+        loadReviews()
     }
 
     private fun getIntentData() {
@@ -48,7 +63,10 @@ class DetailActivity : AppCompatActivity() {
     private fun initUI() {
         binding.backBtn.setOnClickListener { finish() }
 
-        // Load ảnh chính (từ intent nếu có)
+        binding.cartBtn.setOnClickListener {
+            startActivity(Intent(this, CartActivity::class.java))
+        }
+
         val firstImage = item?.picUrl?.firstOrNull()
         Log.d("DetailActivity", "First image URL: $firstImage")
 
@@ -60,7 +78,6 @@ class DetailActivity : AppCompatActivity() {
             Log.d("DetailActivity", "No image available from intent")
         }
 
-        // Setup danh sách ảnh phụ (nếu có trong intent)
         val imageUrls = item?.picUrl ?: emptyList()
         Log.d("DetailActivity", "Total images from intent: ${imageUrls.size}")
 
@@ -79,12 +96,24 @@ class DetailActivity : AppCompatActivity() {
         binding.priceTxt.text = "${item?.price ?: 0}₫"
         binding.raitingTxt.text = item?.rating?.toString() ?: "0.0"
 
-        // Hiển thị mô tả tạm thời từ item (sẽ override nếu API trả về mô tả chi tiết)
         binding.derscriptionTxt.text = item?.description ?: "Không có mô tả"
     }
 
+    private fun initClickListeners() {
+        binding.addToCartBtn.setOnClickListener {
+            addToCart()
+        }
+
+        binding.submitCommentBtn.setOnClickListener {
+            submitReview()
+        }
+
+        binding.mediaPickBtn.setOnClickListener {
+            Toast.makeText(this, "Chức năng chọn ảnh/video sẽ được phát triển sau", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun initObservers() {
-        // Chi tiết sản phẩm (từ API)
         viewModel.productDetail.observe(this) { detail ->
             Log.d("DetailActivity", "Product detail received:")
             Log.d("DetailActivity", "  Product: ${detail?.productName}")
@@ -94,14 +123,12 @@ class DetailActivity : AppCompatActivity() {
                 binding.derscriptionTxt.text = detail.description
             }
 
-            // Nếu API có picUrl, dùng ảnh từ server (override ảnh intent)
             detail?.picUrl?.let { url ->
                 if (url.isNotBlank()) {
                     Glide.with(this)
                         .load(url)
                         .into(binding.img)
 
-                    // update pic list single image
                     binding.picList.layoutManager =
                         LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
                     binding.picList.adapter = PicAdapter(mutableListOf(url)) { selected ->
@@ -111,26 +138,18 @@ class DetailActivity : AppCompatActivity() {
             }
         }
 
-        // Thông số kỹ thuật
         viewModel.productSpecifications.observe(this) { specs ->
             Log.d("DetailActivity", "Specifications received: ${specs.size} items")
             if (specs.isNotEmpty()) {
-                specs.forEachIndexed { index, spec ->
-                    Log.d("DetailActivity", "  Spec[$index]: ${spec.specKey} = ${spec.specValue}")
-                }
-
                 binding.modelList.apply {
                     layoutManager = LinearLayoutManager(this@DetailActivity)
                     adapter = SpecificationAdapter(specs)
                 }
             } else {
                 Log.d("DetailActivity", "No specifications available")
-                // Nếu muốn ẩn recycler khi không có specs:
-                // binding.modelList.visibility = View.GONE
             }
         }
 
-        // Danh sách ảnh phụ từ productImages LiveData (nếu server trả nhiều ảnh)
         viewModel.productImages.observe(this) { images ->
             Log.d("DetailActivity", "Product images received: ${images.size}")
             if (images.isNotEmpty()) {
@@ -142,25 +161,35 @@ class DetailActivity : AppCompatActivity() {
             }
         }
 
-        // Error handling
+        viewModel.productReviews.observe(this) { reviews ->
+            Log.d("DetailActivity", "Reviews received from ViewModel: ${reviews.size}")
+            // Cập nhật adapter TRỰC TIẾP với ProductReviewModel
+            commentAdapter.updateData(reviews)
+            updateReviewCount(reviews.size)
+        }
+
         viewModel.errorMessage.observe(this) { error ->
             error?.let {
                 Log.e("DetailActivity", "Error: $it")
-                android.widget.Toast.makeText(this, it, android.widget.Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, it, Toast.LENGTH_SHORT).show()
                 viewModel.clearError()
             }
         }
 
-        // Loading state
         viewModel.isLoading.observe(this) { loading ->
             Log.d("DetailActivity", "Loading: $loading")
+            if (loading) {
+                binding.commentInputLayout.visibility = View.GONE
+            } else {
+                binding.commentInputLayout.visibility = View.VISIBLE
+            }
         }
     }
 
     private fun loadData() {
         if (productId == -1) {
             Log.e("DetailActivity", "Invalid product ID")
-            android.widget.Toast.makeText(this, "Không tìm thấy sản phẩm", android.widget.Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Không tìm thấy sản phẩm", Toast.LENGTH_SHORT).show()
             finish()
             return
         }
@@ -170,6 +199,204 @@ class DetailActivity : AppCompatActivity() {
 
         viewModel.loadProductDetail(productId)
         viewModel.loadSpecifications(productId)
+    }
+
+    private fun setupCommentList() {
+        commentAdapter = CommentAdapter()
+        binding.modelComment.apply {
+            layoutManager = LinearLayoutManager(this@DetailActivity)
+            adapter = commentAdapter
+        }
+    }
+
+    private fun loadReviews() {
+        if (productId == -1) return
+
+        Log.d("DetailActivity", "Loading reviews for product: $productId")
+
+        // Gọi ViewModel để load reviews
         viewModel.loadReviews(productId)
+    }
+
+    private fun addToCart() {
+        if (productId == -1) {
+            Toast.makeText(this, "Không thể thêm sản phẩm này vào giỏ hàng", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // Lấy token từ TinyDB
+        val tinyDB = TinyDB(this)
+        val token = tinyDB.getString("token", "")
+
+        if (token.isEmpty()) {
+            Toast.makeText(this, "Vui lòng đăng nhập để thêm vào giỏ hàng", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        showLoading(true, "Đang thêm vào giỏ hàng...")
+
+        val body = hashMapOf<String, Any>(
+            "productId" to productId,
+            "quantity" to 1
+        )
+
+        RetrofitClient.cartApi().addToCart(body)
+            .enqueue(object : Callback<CommonResponse> {
+                override fun onResponse(call: Call<CommonResponse>, response: Response<CommonResponse>) {
+                    showLoading(false)
+
+                    if (response.isSuccessful) {
+                        val result = response.body()
+                        if (result?.success == true) {
+                            Toast.makeText(
+                                this@DetailActivity,
+                                "✅ Đã thêm vào giỏ hàng!",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        } else {
+                            Toast.makeText(
+                                this@DetailActivity,
+                                "❌ ${result?.message ?: "Thêm vào giỏ hàng thất bại"}",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    } else {
+                        try {
+                            val errorBody = response.errorBody()?.string()
+                            val errorJson = JSONObject(errorBody ?: "{}")
+                            val errorMsg = errorJson.optString("message", "Lỗi không xác định")
+                            Toast.makeText(
+                                this@DetailActivity,
+                                "❌ $errorMsg",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        } catch (e: Exception) {
+                            Toast.makeText(
+                                this@DetailActivity,
+                                "❌ Lỗi server: ${response.code()}",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                }
+
+                override fun onFailure(call: Call<CommonResponse>, t: Throwable) {
+                    showLoading(false)
+                    Toast.makeText(
+                        this@DetailActivity,
+                        "❌ Lỗi kết nối: ${t.message}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            })
+    }
+
+    private fun submitReview() {
+        val commentText = binding.commentInput.text.toString().trim()
+        val rating = binding.ratingBar.rating.toInt()
+
+        // Validate input
+        if (commentText.isEmpty()) {
+            Toast.makeText(this, "Vui lòng nhập nội dung đánh giá", Toast.LENGTH_SHORT).show()
+            binding.commentInput.requestFocus()
+            return
+        }
+
+        if (rating == 0) {
+            Toast.makeText(this, "Vui lòng chọn số sao đánh giá", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // Lấy token từ TinyDB
+        val tinyDB = TinyDB(this)
+        val token = tinyDB.getString("token", "")
+
+        if (token.isEmpty()) {
+            Toast.makeText(this, "Vui lòng đăng nhập để đánh giá sản phẩm", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        showLoading(true, "Đang gửi đánh giá...")
+
+        val body = hashMapOf<String, Any>(
+            "productId" to productId,
+            "rating" to rating,
+            "content" to commentText,
+            "title" to commentText.take(50)
+        )
+
+        RetrofitClient.reviewApi().submitReview(body)
+            .enqueue(object : Callback<CommonResponse> {
+                override fun onResponse(call: Call<CommonResponse>, response: Response<CommonResponse>) {
+                    showLoading(false)
+
+                    if (response.isSuccessful) {
+                        val result = response.body()
+                        if (result?.success == true) {
+                            Toast.makeText(
+                                this@DetailActivity,
+                                "✅ Đánh giá đã được gửi thành công!",
+                                Toast.LENGTH_SHORT
+                            ).show()
+
+                            // Clear form
+                            binding.commentInput.text.clear()
+                            binding.ratingBar.rating = 5.0f
+
+                            // Tải lại danh sách đánh giá
+                            loadReviews()
+
+                        } else {
+                            Toast.makeText(
+                                this@DetailActivity,
+                                "❌ ${result?.message ?: "Gửi đánh giá thất bại"}",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    } else {
+                        try {
+                            val errorBody = response.errorBody()?.string()
+                            val errorJson = JSONObject(errorBody ?: "{}")
+                            val errorMsg = errorJson.optString("message", "Lỗi không xác định")
+                            Toast.makeText(
+                                this@DetailActivity,
+                                "❌ $errorMsg",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        } catch (e: Exception) {
+                            Toast.makeText(
+                                this@DetailActivity,
+                                "❌ Lỗi server: ${response.code()}",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                }
+
+                override fun onFailure(call: Call<CommonResponse>, t: Throwable) {
+                    showLoading(false)
+                    Toast.makeText(
+                        this@DetailActivity,
+                        "❌ Lỗi kết nối: ${t.message}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            })
+    }
+
+    private fun updateReviewCount(count: Int) {
+        binding.txtComment.text = "Nhận xét khách hàng ($count)"
+    }
+
+    private fun showLoading(show: Boolean, message: String? = null) {
+        if (show) {
+            binding.progressBar.visibility = View.VISIBLE
+            binding.commentInputLayout.isEnabled = false
+            binding.addToCartBtn.isEnabled = false
+        } else {
+            binding.progressBar.visibility = View.GONE
+            binding.commentInputLayout.isEnabled = true
+            binding.addToCartBtn.isEnabled = true
+        }
     }
 }

@@ -21,7 +21,6 @@ object RetrofitClient {
     private lateinit var appContext: Context
     private lateinit var baseUrl: String
 
-    // Thêm property retrofit
     private val retrofit: Retrofit by lazy {
         getPublicClient()
     }
@@ -91,7 +90,9 @@ object RetrofitClient {
     fun create(): ApiInterface {
         return retrofit.create(ApiInterface::class.java)
     }
-
+    fun reviewApi(): ReviewApiService {
+        return retrofit.create(ReviewApiService::class.java)
+    }
     fun authApi(): AuthApi = getPublicClient().create(AuthApi::class.java)
     fun userApi(): UserApi = getAuthClient().create(UserApi::class.java)
     fun categoriesApi(): CategoriesApi = getPublicClient().create(CategoriesApi::class.java)

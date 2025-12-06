@@ -14,6 +14,7 @@ interface ChatApi {
 
     @GET("mobile/chat/updates")
     fun getUpdates(@Query("lastId") lastId: Long): Call<ChatResponse>
+
 }
 
 data class SendMessageRequest(

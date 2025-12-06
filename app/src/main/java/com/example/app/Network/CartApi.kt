@@ -10,7 +10,7 @@ interface CartApi {
     @GET("mobile/cart")
     fun getCart(): Call<CartResponse>
 
-    @POST("mobile/cart/add")
+    @POST("mobile/cart")
     fun addToCart(@Body body: HashMap<String, Any>): Call<CommonResponse>
 
     @PUT("mobile/cart/{id}")

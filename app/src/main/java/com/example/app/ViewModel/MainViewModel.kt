@@ -3,6 +3,7 @@ package com.example.app.ViewModel
 import android.util.Log
 import androidx.lifecycle.*
 import com.example.app.Model.*
+import com.example.app.Network.ApiResponse
 import com.example.app.Network.RetrofitClient
 import kotlinx.coroutines.*
 import retrofit2.Call
@@ -347,8 +348,36 @@ class MainViewModel : ViewModel() {
             })
     }
 
-    fun loadReviews(id: Int) {
-        productReviews.value = emptyList()
+    fun loadReviews(productId: Int) {
+        RetrofitClient.reviewApi().getProductReviews(productId.toLong())
+            .enqueue(object : Callback<ApiResponse<List<ProductReviewModel>>> {
+                override fun onResponse(
+                    call: Call<ApiResponse<List<ProductReviewModel>>>,
+                    response: Response<ApiResponse<List<ProductReviewModel>>>
+                ) {
+                    if (response.isSuccessful) {
+                        val apiResponse = response.body()
+                        if (apiResponse?.success == true) {
+                            productReviews.value = apiResponse.data ?: emptyList()
+                            Log.d("MainViewModel", "Reviews loaded: ${apiResponse.data?.size ?: 0}")
+                        } else {
+                            productReviews.value = emptyList()
+                            Log.e("MainViewModel", "load reviews API error: ${apiResponse?.message}")
+                            sendError(apiResponse?.message ?: "Lỗi tải đánh giá")
+                        }
+                    } else {
+                        productReviews.value = emptyList()
+                        Log.e("MainViewModel", "Load reviews failed: ${response.code()}")
+                        sendError("Lỗi tải đánh giá: ${response.code()}")
+                    }
+                }
+
+                override fun onFailure(call: Call<ApiResponse<List<ProductReviewModel>>>, t: Throwable) {
+                    productReviews.value = emptyList()
+                    Log.e("MainViewModel", "Load reviews network error: ${t.message}")
+                    sendError("Lỗi kết nối: ${t.message}")
+                }
+            })
     }
 
     private fun loadBannersFromRecommended(list: List<ItemsModel>) {
