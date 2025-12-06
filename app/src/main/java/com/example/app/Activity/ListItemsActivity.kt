@@ -35,11 +35,106 @@ class ListItemsActivity : AppCompatActivity() {
 
         // Nếu có searchQuery, gọi API search
         if (searchQuery.isNotEmpty()) {
+            setupSearchObservers()
             callSearchApi(searchQuery)
         } else {
             // Không phải search, load bình thường
+            setupRecommendedObserver()
             initList()
         }
+    }
+
+    private fun setupSearchObservers() {
+        // Quan sát kết quả tìm kiếm
+        viewModel.searchResults.observe(this, Observer { results ->
+            Log.d(TAG, "Search results received: ${results?.size ?: 0} items")
+
+            // Kiểm tra xem đang ở trạng thái loading hay không
+            if (viewModel.isLoading.value == false) {
+                binding.progressBarList.visibility = View.GONE
+
+                if (!results.isNullOrEmpty()) {
+                    Log.d(TAG, "Search API success: ${results.size} items")
+                    binding.categoryTxt.text = "Kết quả cho: $searchQuery"
+
+                    // Hiển thị kết quả
+                    binding.viewList.layoutManager = GridLayoutManager(this, 2)
+                    binding.viewList.adapter = ListItemsAdapter(results.toMutableList())
+                } else {
+                    binding.categoryTxt.text = "Không tìm thấy sản phẩm"
+                    // Xóa adapter nếu không có kết quả
+                    binding.viewList.adapter = null
+                }
+            }
+        })
+
+        // Quan sát trạng thái loading
+        viewModel.isLoading.observe(this, Observer { isLoading ->
+            if (!isLoading) {
+                // Nếu không còn loading, kiểm tra kết quả
+                val results = viewModel.searchResults.value
+                if (results.isNullOrEmpty()) {
+                    binding.progressBarList.visibility = View.GONE
+                    binding.categoryTxt.text = "Không tìm thấy sản phẩm"
+                }
+            }
+        })
+
+        // Quan sát lỗi
+        viewModel.errorMessage.observe(this, Observer { error ->
+            error?.let {
+                Log.e(TAG, "Search error: $it")
+                binding.progressBarList.visibility = View.GONE
+                binding.categoryTxt.text = "Lỗi tìm kiếm: $it"
+                viewModel.clearError() // Xóa lỗi sau khi hiển thị
+            }
+        })
+    }
+
+    private fun setupRecommendedObserver() {
+        // Quan sát recommended products
+        viewModel.recommended.observe(this, Observer { items ->
+            Log.d(TAG, "Recommended products received: ${items?.size ?: 0} items")
+
+            if (viewModel.isLoading.value == false) {
+                binding.progressBarList.visibility = View.GONE
+
+                if (!items.isNullOrEmpty()) {
+                    viewModel.isShowingFallback.value?.let { isFallback ->
+                        if (isFallback && title.isEmpty()) {
+                            binding.categoryTxt.text = "Sản phẩm nổi bật"
+                        }
+                    }
+
+                    binding.viewList.layoutManager = GridLayoutManager(this, 2)
+                    binding.viewList.adapter = ListItemsAdapter(items.toMutableList())
+                } else {
+                    binding.categoryTxt.text = "Không có sản phẩm"
+                    binding.viewList.adapter = null
+                }
+            }
+        })
+
+        // Quan sát trạng thái loading
+        viewModel.isLoading.observe(this, Observer { isLoading ->
+            if (!isLoading) {
+                val items = viewModel.recommended.value
+                if (items.isNullOrEmpty()) {
+                    binding.progressBarList.visibility = View.GONE
+                    binding.categoryTxt.text = "Không có sản phẩm"
+                }
+            }
+        })
+
+        // Quan sát lỗi
+        viewModel.errorMessage.observe(this, Observer { error ->
+            error?.let {
+                Log.e(TAG, "Load products error: $it")
+                binding.progressBarList.visibility = View.GONE
+                binding.categoryTxt.text = "Lỗi tải sản phẩm: $it"
+                viewModel.clearError()
+            }
+        })
     }
 
     private fun callSearchApi(query: String) {
@@ -47,26 +142,8 @@ class ListItemsActivity : AppCompatActivity() {
         binding.progressBarList.visibility = View.VISIBLE
         binding.categoryTxt.text = "Đang tìm kiếm: $query"
 
-        viewModel.searchItems(query).observe(this, Observer<MainViewModel.ApiResponse<List<ItemsModel>>> { result ->
-            binding.progressBarList.visibility = View.GONE
-
-            if (result.success) {
-                Log.d(TAG, "Search API success: ${result.data?.size ?: 0} items")
-
-                if (!result.data.isNullOrEmpty()) {
-                    binding.categoryTxt.text = "Kết quả cho: $query"
-
-                    // Hiển thị kết quả
-                    binding.viewList.layoutManager = GridLayoutManager(this, 2)
-                    binding.viewList.adapter = ListItemsAdapter(result.data.toMutableList())
-                } else {
-                    binding.categoryTxt.text = "Không tìm thấy sản phẩm"
-                }
-            } else {
-                Log.e(TAG, "Search API failed: ${result.message}")
-                binding.categoryTxt.text = "Lỗi tìm kiếm: ${result.message}"
-            }
-        })
+        // Gọi API search
+        viewModel.searchProducts(query)
     }
 
     private fun initList() {
@@ -75,12 +152,6 @@ class ListItemsActivity : AppCompatActivity() {
 
             progressBarList.visibility = View.VISIBLE
             categoryTxt.text = title
-
-            viewModel.recommended.observe(this@ListItemsActivity, Observer { items ->
-                viewList.layoutManager = GridLayoutManager(this@ListItemsActivity, 2)
-                viewList.adapter = ListItemsAdapter(items.toMutableList())
-                progressBarList.visibility = View.GONE
-            })
 
             if (id.isNotEmpty()) {
                 Log.d(TAG, "Load items for category ID = $id")

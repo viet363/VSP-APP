@@ -102,7 +102,6 @@ class MainActivity : BaseActivity() {
         // Set adapter rỗng ban đầu
         binding.viewRecommendation.adapter = RecommendedAdapter(mutableListOf())
 
-        // Quan sát xem đang hiển thị loại sản phẩm nào
         viewModel.isShowingFallback.observe(this) { isFallback ->
             if (isFallback) {
                 binding.recommendedTitle.text = "Sản phẩm từ các danh mục"
@@ -151,8 +150,6 @@ class MainActivity : BaseActivity() {
                 Log.w(TAG, "No categories found, using default categories")
                 binding.viewCategory.adapter = CategoryAdapter(
                     mutableListOf(
-                        CategoryModel(1, "Electronic", "cat1.png"),
-                        CategoryModel(2, "Fashion", "cat2.png")
                     )
                 )
             } else {
@@ -172,13 +169,6 @@ class MainActivity : BaseActivity() {
 
             if (banners.isNotEmpty()) {
                 showBanner(banners)
-            } else {
-                // Hiển thị banner mặc định nếu không có từ API
-                val fakeBanners = listOf(
-                    SliderModel("banner1.png"),
-                    SliderModel("banner2.png")
-                )
-                showBanner(fakeBanners)
             }
         }
     }

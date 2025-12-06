@@ -48,7 +48,7 @@ class DetailActivity : AppCompatActivity() {
     private fun initUI() {
         binding.backBtn.setOnClickListener { finish() }
 
-        // Load ảnh chính
+        // Load ảnh chính (từ intent nếu có)
         val firstImage = item?.picUrl?.firstOrNull()
         Log.d("DetailActivity", "First image URL: $firstImage")
 
@@ -57,17 +57,17 @@ class DetailActivity : AppCompatActivity() {
                 .load(firstImage)
                 .into(binding.img)
         } else {
-            Log.d("DetailActivity", "No image available")
+            Log.d("DetailActivity", "No image available from intent")
         }
 
-        // Setup danh sách ảnh phụ
+        // Setup danh sách ảnh phụ (nếu có trong intent)
         val imageUrls = item?.picUrl ?: emptyList()
-        Log.d("DetailActivity", "Total images: ${imageUrls.size}")
+        Log.d("DetailActivity", "Total images from intent: ${imageUrls.size}")
 
         if (imageUrls.isNotEmpty()) {
             binding.picList.layoutManager =
                 LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
-            binding.picList.adapter = PicAdapter(imageUrls.toMutableList()) { url ->  // Thêm .toMutableList()
+            binding.picList.adapter = PicAdapter(imageUrls.toMutableList()) { url ->
                 Log.d("DetailActivity", "Image selected: $url")
                 Glide.with(this)
                     .load(url)
@@ -79,12 +79,12 @@ class DetailActivity : AppCompatActivity() {
         binding.priceTxt.text = "${item?.price ?: 0}₫"
         binding.raitingTxt.text = item?.rating?.toString() ?: "0.0"
 
-        // Hiển thị mô tả tạm thời từ item
+        // Hiển thị mô tả tạm thời từ item (sẽ override nếu API trả về mô tả chi tiết)
         binding.derscriptionTxt.text = item?.description ?: "Không có mô tả"
     }
 
     private fun initObservers() {
-        // Chi tiết sản phẩm
+        // Chi tiết sản phẩm (từ API)
         viewModel.productDetail.observe(this) { detail ->
             Log.d("DetailActivity", "Product detail received:")
             Log.d("DetailActivity", "  Product: ${detail?.productName}")
@@ -92,6 +92,22 @@ class DetailActivity : AppCompatActivity() {
 
             if (detail?.description != null) {
                 binding.derscriptionTxt.text = detail.description
+            }
+
+            // Nếu API có picUrl, dùng ảnh từ server (override ảnh intent)
+            detail?.picUrl?.let { url ->
+                if (url.isNotBlank()) {
+                    Glide.with(this)
+                        .load(url)
+                        .into(binding.img)
+
+                    // update pic list single image
+                    binding.picList.layoutManager =
+                        LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+                    binding.picList.adapter = PicAdapter(mutableListOf(url)) { selected ->
+                        Glide.with(this).load(selected).into(binding.img)
+                    }
+                }
             }
         }
 
@@ -109,13 +125,21 @@ class DetailActivity : AppCompatActivity() {
                 }
             } else {
                 Log.d("DetailActivity", "No specifications available")
+                // Nếu muốn ẩn recycler khi không có specs:
+                // binding.modelList.visibility = View.GONE
             }
         }
 
-        // Danh sách ảnh phụ
+        // Danh sách ảnh phụ từ productImages LiveData (nếu server trả nhiều ảnh)
         viewModel.productImages.observe(this) { images ->
             Log.d("DetailActivity", "Product images received: ${images.size}")
-            // Có thể update image list nếu cần
+            if (images.isNotEmpty()) {
+                binding.picList.layoutManager =
+                    LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+                binding.picList.adapter = PicAdapter(images.toMutableList()) { url ->
+                    Glide.with(this).load(url).into(binding.img)
+                }
+            }
         }
 
         // Error handling
@@ -147,6 +171,5 @@ class DetailActivity : AppCompatActivity() {
         viewModel.loadProductDetail(productId)
         viewModel.loadSpecifications(productId)
         viewModel.loadReviews(productId)
-        viewModel.loadProductImages(productId)
-        }
+    }
 }

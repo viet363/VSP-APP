@@ -1,12 +1,9 @@
 package com.example.app.ViewModel
 
 import android.util.Log
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.*
 import com.example.app.Model.*
 import com.example.app.Network.RetrofitClient
-import kotlinx.coroutines.*
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
@@ -26,152 +23,201 @@ class MainViewModel : ViewModel() {
     val productImages = MutableLiveData<List<String>>(emptyList())
     val productReviews = MutableLiveData<List<ProductReviewModel>>(emptyList())
 
-    private val viewModelScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-
     fun loadCategories() {
         isLoading.value = true
 
         RetrofitClient.categoriesApi().getAllCategories()
             .enqueue(object : Callback<CategoryResponse> {
-                override fun onResponse(
-                    call: Call<CategoryResponse>,
-                    response: Response<CategoryResponse>
-                ) {
+                override fun onResponse(call: Call<CategoryResponse>, response: Response<CategoryResponse>) {
                     isLoading.value = false
-
                     if (response.isSuccessful) {
-                        val body = response.body()
-                        categories.value = body?.data ?: emptyList()
+                        categories.value = response.body()?.data ?: emptyList()
                     } else {
-                        errorMessage.value = "Lỗi server: ${response.code()}"
+                        sendError("Lỗi server: ${response.code()}")
                         categories.value = emptyList()
                     }
                 }
 
                 override fun onFailure(call: Call<CategoryResponse>, t: Throwable) {
                     isLoading.value = false
-                    errorMessage.value = t.message
+                    sendError(t.message)
                     categories.value = emptyList()
                 }
             })
     }
 
     fun loadRecommended(userId: Long) {
+        Log.d("MainViewModel", "Loading recommended for user: $userId")
         isLoading.value = true
-        recommended.value = emptyList()
         isShowingFallback.value = false
+        recommended.value = emptyList()
+        searchResults.value = emptyList()
 
         RetrofitClient.recommendApi().getRecommendedProducts(userId.toInt())
             .enqueue(object : Callback<RecommendResponse> {
-                override fun onResponse(
-                    call: Call<RecommendResponse>,
-                    response: Response<RecommendResponse>
-                ) {
+                override fun onResponse(call: Call<RecommendResponse>, response: Response<RecommendResponse>) {
+                    Log.d("MainViewModel", "Recommended response code: ${response.code()}")
                     isLoading.value = false
 
                     if (response.isSuccessful) {
                         val body = response.body()
+                        Log.d("MainViewModel", "Recommended body: $body")
 
                         if (body != null && body.success && !body.data.isNullOrEmpty()) {
-                            // Có sản phẩm đề xuất
                             val list = body.data.map { ItemsModel(it) }
+                            Log.d("MainViewModel", "Recommended items: ${list.size}")
                             recommended.value = list
                             loadBannersFromRecommended(list)
-                            isShowingFallback.value = false
-                            Log.d("MainViewModel", "Có ${list.size} sản phẩm đề xuất")
                         } else {
-                            // Không có sản phẩm đề xuất, load sản phẩm từ danh mục
-                            Log.d("MainViewModel", "Không có sản phẩm đề xuất, loading fallback products")
+                            Log.d("MainViewModel", "Loading fallback products (recommended empty)")
                             loadFallbackProducts()
                         }
                     } else {
-                        errorMessage.value = "Lỗi server: ${response.code()}"
-                        Log.d("MainViewModel", "API error, loading fallback products")
+                        Log.d("MainViewModel", "Loading fallback products (response failed)")
                         loadFallbackProducts()
                     }
                 }
 
                 override fun onFailure(call: Call<RecommendResponse>, t: Throwable) {
+                    Log.e("MainViewModel", "Recommended failed: ${t.message}")
                     isLoading.value = false
-                    errorMessage.value = t.message
-                    Log.d("MainViewModel", "Network failure, loading fallback products: ${t.message}")
                     loadFallbackProducts()
                 }
             })
     }
 
     private fun loadFallbackProducts() {
+        Log.d("MainViewModel", "Loading fallback products - START")
         isLoading.value = true
         isShowingFallback.value = true
 
-        // Sử dụng phương thức đơn giản - load tất cả sản phẩm rồi lấy 10 sản phẩm đầu
-        RetrofitClient.productsApi().getAllProducts()
-            .enqueue(object : Callback<ProductListResponse> {
-                override fun onResponse(
-                    call: Call<ProductListResponse>,
-                    response: Response<ProductListResponse>
-                ) {
-                    isLoading.value = false
+        try {
+            RetrofitClient.productsApi().getAllProducts()
+                .enqueue(object : Callback<ProductListResponse> {
+                    override fun onResponse(call: Call<ProductListResponse>, response: Response<ProductListResponse>) {
+                        Log.d("MainViewModel", "Fallback onResponse called - code: ${response.code()}")
 
-                    if (response.isSuccessful) {
-                        val allProducts = response.body()?.data?.map {
-                            it.toItemModel()
-                        } ?: emptyList()
+                        try {
+                            isLoading.value = false
 
-                        if (allProducts.isNotEmpty()) {
-                            // Lấy 10 sản phẩm đầu tiên, hoặc ít hơn nếu không đủ
-                            val productsToShow = allProducts.take(10)
-                            recommended.value = productsToShow
-                            loadBannersFromRecommended(productsToShow)
-                            Log.d("MainViewModel", "Loaded ${productsToShow.size} fallback products")
-                        } else {
+                            if (response.isSuccessful) {
+                                Log.d("MainViewModel", "Response is successful")
+                                val body = response.body()
+                                Log.d("MainViewModel", "Response body is null: ${body == null}")
+
+                                if (body == null) {
+                                    Log.e("MainViewModel", "Response body is null!")
+                                    recommended.value = emptyList()
+                                    return
+                                }
+
+                                // Thử parse đơn giản hơn
+                                val rawBody = response.body()?.toString()
+                                Log.d("MainViewModel", "Raw response (first 500 chars): ${rawBody?.take(500)}")
+
+                                // Kiểm tra cấu trúc response
+                                val hasData = !body.data.isNullOrEmpty()
+                                val hasProducts = !body.products.isNullOrEmpty()
+                                Log.d("MainViewModel", "Response structure - hasData: $hasData, hasProducts: $hasProducts")
+
+                                val productList = body.getProductList()
+                                Log.d("MainViewModel", "Total products from API: ${productList.size}")
+
+                                if (productList.isNotEmpty()) {
+                                    // Lấy 10 sản phẩm đầu tiên
+                                    val itemsList = productList.take(10).map {
+                                        try {
+                                            it.toItemModel()
+                                        } catch (e: Exception) {
+                                            Log.e("MainViewModel", "Error converting product: ${e.message}")
+                                            null
+                                        }
+                                    }.filterNotNull()
+
+                                    Log.d("MainViewModel", "Successfully converted ${itemsList.size} items")
+
+                                    if (itemsList.isNotEmpty()) {
+                                        recommended.value = itemsList
+                                        loadBannersFromRecommended(itemsList)
+                                        Log.d("MainViewModel", "Fallback products loaded successfully - ${itemsList.size} items")
+                                    } else {
+                                        Log.e("MainViewModel", "No items after conversion")
+                                        recommended.value = emptyList()
+                                    }
+                                } else {
+                                    Log.e("MainViewModel", "Product list is empty")
+                                    recommended.value = emptyList()
+                                }
+
+                            } else {
+                                val errorBody = response.errorBody()?.string()
+                                Log.e("MainViewModel", "Response not successful: ${response.code()}, error: $errorBody")
+                                sendError("Lỗi tải sản phẩm: ${response.code()}")
+                                recommended.value = emptyList()
+                            }
+
+                        } catch (e: Exception) {
+                            Log.e("MainViewModel", "Exception in onResponse: ${e.message}")
+                            e.printStackTrace()
+                            isLoading.value = false
                             recommended.value = emptyList()
-                            banners.value = emptyList()
-                            errorMessage.value = "Không có sản phẩm nào"
                         }
-                    } else {
-                        recommended.value = emptyList()
-                        banners.value = emptyList()
-                        errorMessage.value = "Lỗi tải sản phẩm: ${response.code()}"
                     }
-                }
 
-                override fun onFailure(call: Call<ProductListResponse>, t: Throwable) {
-                    isLoading.value = false
-                    recommended.value = emptyList()
-                    banners.value = emptyList()
-                    errorMessage.value = t.message
-                }
-            })
+                    override fun onFailure(call: Call<ProductListResponse>, t: Throwable) {
+                        Log.e("MainViewModel", "Fallback onFailure called: ${t.message}")
+                        t.printStackTrace()
+                        isLoading.value = false
+                        sendError(t.message ?: "Lỗi không xác định")
+                        recommended.value = emptyList()
+                    }
+                })
+
+        } catch (e: Exception) {
+            Log.e("MainViewModel", "Exception in loadFallbackProducts: ${e.message}")
+            e.printStackTrace()
+            isLoading.value = false
+            recommended.value = emptyList()
+        }
     }
 
     fun loadFiltered(categoryId: String) {
         val id = categoryId.toIntOrNull() ?: return
+        Log.d("MainViewModel", "Loading filtered products for category: $id")
         isLoading.value = true
         isShowingFallback.value = false
+        recommended.value = emptyList()
+        searchResults.value = emptyList()
 
         RetrofitClient.productsApi().getProductsByCategory(id)
             .enqueue(object : Callback<ProductListResponse> {
-                override fun onResponse(
-                    call: Call<ProductListResponse>,
-                    response: Response<ProductListResponse>
-                ) {
+                override fun onResponse(call: Call<ProductListResponse>, response: Response<ProductListResponse>) {
+                    Log.d("MainViewModel", "Filtered response code: ${response.code()}")
                     isLoading.value = false
 
                     if (response.isSuccessful) {
-                        val list = response.body()?.data?.map { it.toItemModel() } ?: emptyList()
+                        val body = response.body()
+                        Log.d("MainViewModel", "Filtered body structure: data=${body?.data?.size}, products=${body?.products?.size}")
+
+                        // SỬA: Sử dụng getProductList() thay vì chỉ data
+                        val products = body?.getProductList() ?: emptyList()
+                        val list = products.map { it.toItemModel() }
+
+                        Log.d("MainViewModel", "Filtered items after parse: ${list.size}")
                         recommended.value = list
                         loadBannersFromRecommended(list)
                     } else {
-                        errorMessage.value = "Lỗi tải danh mục: ${response.code()}"
+                        Log.e("MainViewModel", "Filtered error: ${response.errorBody()?.string()}")
+                        sendError("Lỗi tải danh mục: ${response.code()}")
                         recommended.value = emptyList()
                         banners.value = emptyList()
                     }
                 }
 
                 override fun onFailure(call: Call<ProductListResponse>, t: Throwable) {
+                    Log.e("MainViewModel", "Filtered failed: ${t.message}")
                     isLoading.value = false
-                    errorMessage.value = t.message
+                    sendError(t.message)
                     recommended.value = emptyList()
                     banners.value = emptyList()
                 }
@@ -184,27 +230,40 @@ class MainViewModel : ViewModel() {
             return
         }
 
+        Log.d("MainViewModel", "Searching for: $query")
         isLoading.value = true
+        errorMessage.value = null
+        recommended.value = emptyList()
+
         RetrofitClient.productsApi().searchProducts(query)
             .enqueue(object : Callback<ProductListResponse> {
-                override fun onResponse(
-                    call: Call<ProductListResponse>,
-                    response: Response<ProductListResponse>
-                ) {
+                override fun onResponse(call: Call<ProductListResponse>, response: Response<ProductListResponse>) {
+                    Log.d("MainViewModel", "Search response code: ${response.code()}")
                     isLoading.value = false
 
                     if (response.isSuccessful) {
-                        val list = response.body()?.data?.map { it.toItemModel() } ?: emptyList()
-                        searchResults.value = list
+                        val body = response.body()
+                        Log.d("MainViewModel", "Search body structure: data=${body?.data?.size}, products=${body?.products?.size}")
+
+                        // SỬA: Sử dụng getProductList() thay vì chỉ data
+                        val products = body?.getProductList() ?: emptyList()
+                        val results = products.map { it.toItemModel() }
+
+                        Log.d("MainViewModel", "Search found ${results.size} items")
+                        searchResults.value = results
                     } else {
-                        errorMessage.value = "Lỗi tìm kiếm: ${response.code()}"
+                        val errorMsg = "Lỗi tìm kiếm: ${response.code()}"
+                        Log.e("MainViewModel", errorMsg)
+                        sendError(errorMsg)
                         searchResults.value = emptyList()
                     }
                 }
 
                 override fun onFailure(call: Call<ProductListResponse>, t: Throwable) {
+                    Log.e("MainViewModel", "Search failed: ${t.message}")
                     isLoading.value = false
-                    errorMessage.value = t.message
+                    val errorMsg = t.message ?: "Lỗi không xác định"
+                    sendError(errorMsg)
                     searchResults.value = emptyList()
                 }
             })
@@ -212,131 +271,59 @@ class MainViewModel : ViewModel() {
 
     fun loadProductDetail(id: Int) {
         isLoading.value = true
-        Log.d("MainViewModel", "Loading product detail for ID: $id")
 
-        try {
-            RetrofitClient.productsApi().getProductDetail(id)
-                .enqueue(object : Callback<ProductDetailResponse> {
-                    override fun onResponse(
-                        call: Call<ProductDetailResponse>,
-                        response: Response<ProductDetailResponse>
-                    ) {
-                        isLoading.value = false
-                        Log.d("MainViewModel", "Product detail response code: ${response.code()}")
+        RetrofitClient.productsApi().getProductDetail(id)
+            .enqueue(object : Callback<ProductDetailResponse> {
+                override fun onResponse(call: Call<ProductDetailResponse>, response: Response<ProductDetailResponse>) {
+                    isLoading.value = false
 
-                        if (response.isSuccessful) {
-                            val body = response.body()
-                            Log.d("MainViewModel", "Success: ${body?.success}")
-                            productDetail.value = body?.data
-                        } else {
-                            val errorBody = response.errorBody()?.string()
-                            Log.e("MainViewModel", "Error body: $errorBody")
-                            errorMessage.value = "Lỗi tải chi tiết sản phẩm: ${response.code()}"
-                            productDetail.value = null
-                        }
-                    }
-
-                    override fun onFailure(call: Call<ProductDetailResponse>, t: Throwable) {
-                        isLoading.value = false
-                        Log.e("MainViewModel", "Network failure: ${t.message}")
-                        errorMessage.value = "Lỗi mạng: ${t.message}"
+                    if (response.isSuccessful) {
+                        productDetail.value = response.body()?.data
+                        loadProductImagesDirect(response.body()?.data)
+                    } else {
+                        sendError("Lỗi chi tiết sản phẩm: ${response.code()}")
                         productDetail.value = null
                     }
-                })
-        } catch (ex: Exception) {
-            isLoading.value = false
-            Log.e("MainViewModel", "Exception: ${ex.message}")
-            errorMessage.value = ex.message
-            productDetail.value = null
-        }
+                }
+
+                override fun onFailure(call: Call<ProductDetailResponse>, t: Throwable) {
+                    isLoading.value = false
+                    sendError(t.message)
+                    productDetail.value = null
+                }
+            })
+    }
+
+    private fun loadProductImagesDirect(detail: ProductResponse?) {
+        productImages.value =
+            if (!detail?.picUrl.isNullOrBlank()) listOf(detail!!.picUrl!!)
+            else emptyList()
     }
 
     fun loadSpecifications(id: Int) {
-        isLoading.value = true
-        Log.d("MainViewModel", "Loading specifications for product ID: $id")
-
-        RetrofitClient.productsApi().getSpecifications(id)
+        RetrofitClient.productsApi().getSpecification(id.toLong())
             .enqueue(object : Callback<ProductSpecResponse> {
-                override fun onResponse(
-                    call: Call<ProductSpecResponse>,
-                    response: Response<ProductSpecResponse>
-                ) {
-                    isLoading.value = false
-                    Log.d("MainViewModel", "Spec response code: ${response.code()}")
-
-                    if (response.isSuccessful) {
-                        val body = response.body()
-                        Log.d("MainViewModel", "Spec success: ${body?.success}, count: ${body?.count}")
-                        productSpecifications.value = body?.data ?: emptyList()
+                override fun onResponse(call: Call<ProductSpecResponse>, response: Response<ProductSpecResponse>) {
+                    if (response.isSuccessful && response.body()?.success == true) {
+                        productSpecifications.value = response.body()!!.data
                     } else {
-                        Log.e("MainViewModel", "Spec error: ${response.code()}")
                         productSpecifications.value = emptyList()
                     }
                 }
 
                 override fun onFailure(call: Call<ProductSpecResponse>, t: Throwable) {
-                    isLoading.value = false
-                    Log.e("MainViewModel", "Spec network failure: ${t.message}")
                     productSpecifications.value = emptyList()
                 }
             })
     }
-    fun searchItems(query: String): LiveData<ApiResponse<List<ItemsModel>>> {
-        val result = MutableLiveData<ApiResponse<List<ItemsModel>>>()
 
-        // Gọi API
-        RetrofitClient.productsApi().searchProducts(query)
-            .enqueue(object : Callback<ProductListResponse> {
-                override fun onResponse(
-                    call: Call<ProductListResponse>,
-                    response: Response<ProductListResponse>
-                ) {
-                    if (response.isSuccessful) {
-                        val body = response.body()
-                        if (body?.success == true) {
-                            val items = body.data?.map { product ->
-                                ItemsModel(
-                                    id = product.id.toInt(),
-                                    title = product.productName,
-                                    description = product.description,
-                                    price = product.price.toDouble() ?: 0.0,
-                                    picUrl = listOf(product.picUrl ?: ""),
-                                    rating = null,
-                                    score = null
-                                )
-                            } ?: emptyList()
-
-                            result.value = ApiResponse.success(items)
-                        } else {
-                            result.value = ApiResponse.error("Search failed")
-                        }
-                    } else {
-                        result.value = ApiResponse.error("HTTP error: ${response.code()}")
-                    }
-                }
-
-                override fun onFailure(call: Call<ProductListResponse>, t: Throwable) {
-                    result.value = ApiResponse.error("Network error: ${t.message}")
-                }
-            })
-
-        return result
-    }
     fun loadReviews(id: Int) {
         productReviews.value = emptyList()
-        Log.d("MainViewModel", "Reviews loaded (empty for now)")
     }
 
-    fun loadProductImages(id: Int) {
-        // Lấy ảnh từ productDetail
-        productDetail.observeForever { detail ->
-            detail?.picUrl?.let { url ->
-                if (url.isNotBlank()) {
-                    productImages.value = listOf(url)
-                } else {
-                    productImages.value = emptyList()
-                }
-            }
+    private fun loadBannersFromRecommended(list: List<ItemsModel>) {
+        banners.value = list.mapNotNull { item ->
+            item.picUrl.firstOrNull()?.let { SliderModel(it) }
         }
     }
 
@@ -348,33 +335,18 @@ class MainViewModel : ViewModel() {
         searchResults.value = emptyList()
     }
 
-    private fun loadBannersFromRecommended(list: List<ItemsModel>) {
-        if (list.isEmpty()) {
-            banners.value = emptyList()
-            return
-        }
-
-        val bannerList = list.mapNotNull { item ->
-            if (!item.picUrl.isNullOrEmpty()) {
-                SliderModel(item.picUrl.first())
-            } else null
-        }
-
-        banners.value = bannerList
+    private fun sendError(msg: String?) {
+        errorMessage.value = msg ?: "Lỗi không xác định"
     }
 
-    override fun onCleared() {
-        super.onCleared()
-        viewModelScope.cancel()
-    }
     data class ApiResponse<T>(
         val success: Boolean,
         val data: T? = null,
         val message: String? = null
     ) {
         companion object {
-            fun <T> success(data: T): ApiResponse<T> = ApiResponse(true, data)
-            fun <T> error(message: String): ApiResponse<T> = ApiResponse(false, null, message)
+            fun <T> success(data: T) = ApiResponse(true, data)
+            fun <T> error(msg: String) = ApiResponse<T>(false, null, msg)
         }
     }
 }
