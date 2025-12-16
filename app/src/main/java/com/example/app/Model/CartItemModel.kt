@@ -18,7 +18,7 @@ data class CartServerItem(
     val Id: Long,
     val productId: Long,
     val productName: String,
-    val Price: Double,  // Chú ý: BE trả về Price
-    val productImage: String?,  // BE trả về productImage
-    val Quantity: Int  // Chú ý: BE trả về Quantity
+    val Price: Double,
+    val productImage: String?,
+    val Quantity: Int
 )

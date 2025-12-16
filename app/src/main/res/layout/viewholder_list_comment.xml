@@ -2,9 +2,11 @@
 <androidx.cardview.widget.CardView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_margin="8dp"
+    android:layout_marginHorizontal="8dp"
+    android:layout_marginVertical="4dp"
     app:cardCornerRadius="8dp"
     app:cardElevation="2dp">
 
@@ -12,59 +14,99 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="12dp">
+        android:padding="16dp">
 
+        <!-- Header với avatar, tên, rating và ngày -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
+            <!-- Avatar -->
             <ImageView
                 android:id="@+id/imgAvatar"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
-                android:layout_marginEnd="12dp"
                 android:src="@drawable/placeholder"
-                android:scaleType="centerCrop"/>
+                android:scaleType="centerCrop"
+                android:background="@drawable/circle_background" />
 
-            <TextView
-                android:id="@+id/txtNameComment"
+            <!-- Thông tin người dùng và rating -->
+            <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Người dùng"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                android:textColor="@color/black"/>
+                android:orientation="vertical"
+                android:layout_marginStart="12dp">
 
+                <!-- Tên người dùng -->
+                <TextView
+                    android:id="@+id/txtNameComment"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Người dùng"
+                    android:textStyle="bold"
+                    android:textSize="14sp"
+                    android:textColor="@color/black"
+                    tools:text="John Doe" />
+
+                <!-- Rating của review -->
+                <RatingBar
+                    android:id="@+id/ratingBarReview"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:numStars="5"
+                    android:rating="0"
+                    android:stepSize="1"
+                    android:isIndicator="true"
+                    style="?android:attr/ratingBarStyleSmall"
+                    android:layout_marginTop="2dp"
+                    tools:rating="4" />
+
+                <!-- Ngày đánh giá -->
+                <TextView
+                    android:id="@+id/txtDate"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="01/01/2023"
+                    android:textSize="12sp"
+                    android:textColor="@color/gray"
+                    android:layout_marginTop="2dp"
+                    tools:text="15/12/2023 14:30" />
+            </LinearLayout>
         </LinearLayout>
 
+        <!-- Nội dung đánh giá -->
         <TextView
             android:id="@+id/txtComment"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="Nội dung đánh giá..."
+            android:layout_marginTop="12dp"
+            android:text="Nội dung bình luận sẽ hiển thị ở đây..."
             android:textSize="14sp"
             android:textColor="@color/black"
-            android:lineSpacingExtra="4dp"/>
+            android:lineSpacingExtra="2dp"
+            tools:text="Sản phẩm rất tốt, chất lượng cao, giao hàng nhanh. Tôi rất hài lòng với sản phẩm này!" />
 
+        <!-- Media section (có thể thêm ảnh/video sau) -->
         <ImageView
             android:id="@+id/commentImage"
-            android:layout_width="120dp"
-            android:layout_height="120dp"
-            android:layout_marginTop="8dp"
+            android:layout_width="match_parent"
+            android:layout_height="150dp"
+            android:layout_marginTop="12dp"
             android:visibility="gone"
-            android:scaleType="centerCrop"/>
+            android:scaleType="centerCrop"
+            android:background="@color/gray"
+            tools:visibility="visible"
+            tools:src="@tools:sample/avatars" />
 
         <VideoView
             android:id="@+id/commentVideo"
             android:layout_width="match_parent"
-            android:layout_height="200dp"
-            android:layout_marginTop="8dp"
-            android:visibility="gone"/>
+            android:layout_height="150dp"
+            android:layout_marginTop="12dp"
+            android:visibility="gone" />
 
     </LinearLayout>
-
 </androidx.cardview.widget.CardView>

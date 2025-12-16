@@ -9,7 +9,7 @@ data class OrderModel(
     val Ship_address: String,
     val Ship_fee: String,
     val Paid_date: String?,
-    val Order_status: String,
+    val Order_status: String?,
     val Payment_type: String,
     val Create_at: String,
     val Update_at: String,

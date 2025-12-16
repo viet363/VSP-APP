@@ -6,13 +6,12 @@ data class ProductListResponse(
     val success: Boolean,
 
     @SerializedName("data")
-    val data: List<ProductModel>? = null,  // ← API search/all trả về "data"
+    val data: List<ProductModel>? = null,
 
     @SerializedName("products")
-    val products: List<ProductModel>? = null  // ← API category trả về "products"
+    val products: List<ProductModel>? = null
 ) {
     fun getProductList(): List<ProductModel> {
-        // Xử lý cả 2 trường hợp: "data" hoặc "products"
         return when {
             !data.isNullOrEmpty() -> data
             !products.isNullOrEmpty() -> products

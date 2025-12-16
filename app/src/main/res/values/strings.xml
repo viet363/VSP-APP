@@ -3,7 +3,7 @@
     <string name="default_web_client_id">
     538712076460-vhocm7aajmm3tk83m030f4ujphau713g.apps.googleusercontent.com
 </string>
-    <string name="base_url">http://192.168.1.101:4000/api/</string>
+    <string name="base_url">http://192.168.1.100:4000/api/</string>
     <string name="action_settings">Settings</string>
     <string name="first_fragment_label">First Fragment</string>
     <string name="second_fragment_label">Second Fragment</string>
@@ -32,8 +32,27 @@
     <string name="nh_ng_ai_y_u_anh_anh_kh_ng_th_c_n_c">Thanh toán qua các app ngân hàng</string>
     <string name="danh_m_c">Danh mục</string>
     <string name="search_hint">Tìm kiếm sản phẩm...</string>
+    <string name="filter_title">Bộ lọc sản phẩm</string>
+    <string name="price_range">Khoảng giá</string>
+    <string name="min_price">Từ (₫)</string>
+    <string name="max_price">Đến (₫)</string>
+    <string name="min_rating">Đánh giá tối thiểu</string>
+    <string name="sort_by">Sắp xếp theo</string>
+    <string name="stock_status">Tình trạng kho</string>
+    <string name="in_stock_only">Chỉ hiển thị còn hàng</string>
+    <string name="reset">Đặt lại</string>
+    <string name="apply">Áp dụng</string>
+    <string name="sort_default">Mặc định</string>
+    <string name="sort_price_asc">Giá thấp đến cao</string>
+    <string name="sort_price_desc">Giá cao đến thấp</string>
+    <string name="sort_rating">Đánh giá cao nhất</string>
+    <string name="sort_newest">Mới nhất</string>
     <string name="no_results">Không tìm thấy kết quả</string>
     <string name="min_characters">Vui lòng nhập ít nhất 2 ký tự</string>
     <string name="chat">Chat</string>
-
+    <string name="wishlist_title">Sản phẩm yêu thích</string>
+    <string name="empty_wishlist">Chưa có sản phẩm yêu thích</string>
+    <string name="empty_wishlist_desc">Hãy thêm sản phẩm bạn yêu thích vào đây</string>
+    <string name="add_to_wishlist">Thêm vào yêu thích</string>
+    <string name="remove_from_wishlist">Xóa khỏi yêu thích</string>
 </resources>

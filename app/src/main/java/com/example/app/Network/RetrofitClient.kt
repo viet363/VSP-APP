@@ -1,10 +1,10 @@
-// RetrofitClient.kt
 package com.example.app.Network
 
 import android.content.Context
 import android.util.Log
 import com.example.app.Helper.TinyDB
 import com.example.app.R
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -22,7 +22,11 @@ object RetrofitClient {
     private lateinit var baseUrl: String
 
     private val retrofit: Retrofit by lazy {
-        getPublicClient()
+        createRetrofitWithAuth()
+    }
+
+    private val publicRetrofit: Retrofit by lazy {
+        createPublicRetrofit()
     }
 
     fun init(context: Context) {
@@ -31,9 +35,12 @@ object RetrofitClient {
         Log.d(TAG, "RetrofitClient initialized with BASE_URL: $baseUrl")
     }
 
-    private fun getAuthClient(): Retrofit {
-        val tinyDB = TinyDB(appContext)
+    fun refreshToken() {
 
+        Log.d(TAG, "Token refreshed (retrofit will use latest token from TinyDB)")
+    }
+
+    private fun createPublicRetrofit(): Retrofit {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
         }
@@ -44,20 +51,11 @@ object RetrofitClient {
             .writeTimeout(WRITE_TIMEOUT, TimeUnit.SECONDS)
             .addInterceptor(loggingInterceptor)
             .addInterceptor { chain ->
-                val token = tinyDB.getString("token", "")
-                Log.d(TAG, "Token present: ${token.isNotEmpty()}")
-
-                val original = chain.request()
-                val builder = original.newBuilder()
-
-                if (token.isNotEmpty()) {
-                    builder.addHeader("Authorization", "Bearer $token")
-                }
-
-                builder.addHeader("Content-Type", "application/json")
-                builder.addHeader("Accept", "application/json")
-
-                chain.proceed(builder.build())
+                val request = chain.request().newBuilder()
+                    .addHeader("Content-Type", "application/json")
+                    .addHeader("Accept", "application/json")
+                    .build()
+                chain.proceed(request)
             }
             .build()
 
@@ -68,16 +66,34 @@ object RetrofitClient {
             .build()
     }
 
-    private fun getPublicClient(): Retrofit {
-        val logging = HttpLoggingInterceptor().apply {
+    private fun createRetrofitWithAuth(): Retrofit {
+        val loggingInterceptor = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
+        }
+
+        val authInterceptor = Interceptor { chain ->
+            val tinyDB = TinyDB(appContext)
+            val token = tinyDB.getString("token", "")
+
+            Log.d(TAG, "Using token for request: ${if (token.isNotEmpty()) "YES (${token.take(10)}...)" else "NO"}")
+
+            val requestBuilder = chain.request().newBuilder()
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Accept", "application/json")
+
+            if (token.isNotEmpty()) {
+                requestBuilder.addHeader("Authorization", "Bearer $token")
+            }
+
+            chain.proceed(requestBuilder.build())
         }
 
         val client = OkHttpClient.Builder()
             .connectTimeout(CONNECT_TIMEOUT, TimeUnit.SECONDS)
             .readTimeout(READ_TIMEOUT, TimeUnit.SECONDS)
             .writeTimeout(WRITE_TIMEOUT, TimeUnit.SECONDS)
-            .addInterceptor(logging)
+            .addInterceptor(loggingInterceptor)
+            .addInterceptor(authInterceptor)
             .build()
 
         return Retrofit.Builder()
@@ -87,20 +103,16 @@ object RetrofitClient {
             .build()
     }
 
-    fun create(): ApiInterface {
-        return retrofit.create(ApiInterface::class.java)
-    }
-    fun reviewApi(): ReviewApiService {
-        return retrofit.create(ReviewApiService::class.java)
-    }
-    fun authApi(): AuthApi = getPublicClient().create(AuthApi::class.java)
-    fun userApi(): UserApi = getAuthClient().create(UserApi::class.java)
-    fun categoriesApi(): CategoriesApi = getPublicClient().create(CategoriesApi::class.java)
-    fun productsApi(): ProductsApi = getPublicClient().create(ProductsApi::class.java)
-    fun recommendApi(): RecommendApiService = getPublicClient().create(RecommendApiService::class.java)
-    fun ordersApi(): OrdersApi = getAuthClient().create(OrdersApi::class.java)
-    fun paymentApi(): PaymentApi = getAuthClient().create(PaymentApi::class.java)
-    fun cartApi(): CartApi = getAuthClient().create(CartApi::class.java)
-    fun chatApi(): ChatApi = getAuthClient().create(ChatApi::class.java)
+    fun authApi(): AuthApi = publicRetrofit.create(AuthApi::class.java)
+    fun categoriesApi(): CategoriesApi = publicRetrofit.create(CategoriesApi::class.java)
+    fun productsApi(): ProductsApi = publicRetrofit.create(ProductsApi::class.java)
+    fun recommendApi(): RecommendApiService = publicRetrofit.create(RecommendApiService::class.java)
 
+    fun userApi(): UserApi = retrofit.create(UserApi::class.java)
+    fun ordersApi(): OrdersApi = retrofit.create(OrdersApi::class.java)
+    fun paymentApi(): PaymentApi = retrofit.create(PaymentApi::class.java)
+    fun cartApi(): CartApi = retrofit.create(CartApi::class.java)
+    fun chatApi(): ChatApi = retrofit.create(ChatApi::class.java)
+    fun wishlistApi(): WishlistApi = retrofit.create(WishlistApi::class.java)
+    fun reviewApi(): ReviewApiService = retrofit.create(ReviewApiService::class.java)
 }

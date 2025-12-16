@@ -17,11 +17,42 @@ class CommentAdapter(
 ) : RecyclerView.Adapter<CommentAdapter.ViewHolder>() {
 
     inner class ViewHolder(val binding: ViewholderListCommentBinding) :
-        RecyclerView.ViewHolder(binding.root)
+        RecyclerView.ViewHolder(binding.root) {
 
-    fun updateData(newList: List<ProductReviewModel>) {
-        listComment = newList
-        notifyDataSetChanged()
+        private val ratingBar: RatingBar = itemView.findViewById(R.id.ratingBarReview)
+
+        fun bind(review: ProductReviewModel) {
+            binding.txtNameComment.text = review.userName ?: "Người dùng ${review.userId ?: "Ẩn danh"}"
+            binding.txtComment.text = review.content ?: review.title ?: ""
+
+            ratingBar.rating = review.rating.toFloat()
+
+            review.createAt?.let { dateStr ->
+                try {
+                    val inputFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                    val date = inputFormat.parse(dateStr)
+                    val outputFormat = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+                    binding.txtDate.text = outputFormat.format(date)
+                } catch (e: Exception) {
+                    binding.txtDate.text = dateStr
+                }
+            } ?: run {
+                binding.txtDate.text = ""
+            }
+
+            if (!review.userAvatar.isNullOrEmpty()) {
+                Glide.with(itemView.context)
+                    .load(review.userAvatar)
+                    .placeholder(R.drawable.placeholder)
+                    .error(R.drawable.placeholder)
+                    .into(binding.imgAvatar)
+            } else {
+                binding.imgAvatar.setImageResource(R.drawable.placeholder)
+            }
+
+            binding.commentImage.visibility = View.GONE
+            binding.commentVideo.visibility = View.GONE
+        }
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -36,38 +67,12 @@ class CommentAdapter(
     override fun getItemCount(): Int = listComment.size
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        val review = listComment[position]
-        val context = holder.itemView.context
+        holder.bind(listComment[position])
+    }
 
-        holder.binding.txtNameComment.text = review.userName ?: "Người dùng ${review.userId ?: "Ẩn danh"}"
-
-        holder.binding.txtComment.text = review.content ?: review.title ?: ""
-
-        if (review.rating > 0) {
-            holder.binding.txtComment.append("\n\n⭐ ${review.rating}/5")
-        }
-
-        if (!review.userAvatar.isNullOrEmpty()) {
-            Glide.with(context)
-                .load(review.userAvatar)
-                .placeholder(R.drawable.placeholder)
-                .error(R.drawable.placeholder)
-                .into(holder.binding.imgAvatar)
-        } else {
-            holder.binding.imgAvatar.setImageResource(R.drawable.placeholder)
-        }
-
-        review.createAt?.let { dateStr ->
-            try {
-                val inputFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-                val date = inputFormat.parse(dateStr)
-                val outputFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
-            } catch (e: Exception) {
-            }
-        }
-
-        holder.binding.commentImage.visibility = View.GONE
-        holder.binding.commentVideo.visibility = View.GONE
+    fun updateData(newList: List<ProductReviewModel>) {
+        listComment = newList
+        notifyDataSetChanged()
     }
 
     override fun onViewRecycled(holder: ViewHolder) {

@@ -1,5 +1,6 @@
 package com.example.app.Adapter
 
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -16,6 +17,8 @@ import java.util.Locale
 
 class OrderAdapter(private var orders: List<OrderModel>) :
     RecyclerView.Adapter<OrderAdapter.OrderViewHolder>() {
+
+    private val TAG = "OrderAdapter"
 
     fun updateData(newOrders: List<OrderModel>) {
         this.orders = newOrders
@@ -39,20 +42,24 @@ class OrderAdapter(private var orders: List<OrderModel>) :
     override fun onBindViewHolder(holder: OrderViewHolder, position: Int) {
         val order = orders[position]
 
-        // Format date
+        Log.d(TAG, "Binding order at position $position, ID: ${order.Id}, Status: ${order.Order_status}")
+
         val orderDate = order.Order_date
         holder.dateTxt.text = "Ngày đặt: $orderDate"
 
-        // Format total - nếu không có total, sử dụng Ship_fee
         val formatter = NumberFormat.getNumberInstance(Locale("vi", "VN"))
-        val total = order.total ?: order.Ship_fee.toDoubleOrNull() ?: 0.0
+        val total = when {
+            order.total != null -> order.total!!
+            order.Ship_fee.isNotBlank() -> order.Ship_fee.toDoubleOrNull() ?: 0.0
+            else -> 0.0
+        }
         holder.totalTxt.text = "Tổng: ${formatter.format(total)}đ"
 
-        // Status and address
         holder.statusTxt.text = "Trạng thái: ${getStatusText(order.Order_status)}"
-        holder.addressTxt.text = "Địa chỉ: ${order.Ship_address}"
 
-        // Hiển thị danh sách sản phẩm - nếu không có items, ẩn RecyclerView
+        val address = order.Ship_address ?: "Không có địa chỉ"
+        holder.addressTxt.text = "Địa chỉ: $address"
+
         if (order.items.isNullOrEmpty()) {
             holder.itemsRecyclerView.visibility = View.GONE
         } else {
@@ -68,19 +75,19 @@ class OrderAdapter(private var orders: List<OrderModel>) :
 
     override fun getItemCount(): Int = orders.size
 
-    private fun getStatusText(status: String): String {
-        return when (status) {
-            "Pending" -> "Chờ xác nhận"
-            "Processing" -> "Đang xử lý"
-            "Shipped" -> "Đang giao hàng"
-            "Delivered" -> "Đã giao"
-            "Cancelled" -> "Đã hủy"
-            "Returned" -> "Đã trả hàng"
+    private fun getStatusText(status: String?): String {
+        return when (status?.trim()?.lowercase()) {
+            "pending" -> "Chờ xác nhận"
+            "processing" -> "Đang xử lý"
+            "shipped" -> "Đang giao hàng"
+            "delivered" -> "Đã giao"
+            "cancelled" -> "Đã hủy"
+            "returned" -> "Đã trả hàng"
+            null -> "Không xác định"
             else -> status
         }
     }
 
-    // Nested adapter class
     private class OrderItemAdapter(private val items: List<OrderItemModel>) :
         RecyclerView.Adapter<OrderItemAdapter.OrderItemViewHolder>() {
 
@@ -105,15 +112,20 @@ class OrderAdapter(private var orders: List<OrderModel>) :
             val formatter = NumberFormat.getNumberInstance(Locale("vi", "VN"))
             formatter.minimumFractionDigits = 0
             formatter.maximumFractionDigits = 0
-            holder.priceTxt.text = "Giá: ${formatter.format(item.Unit_price)}đ"
+            val price = item.Unit_price ?: 0.0
+            holder.priceTxt.text = "Giá: ${formatter.format(price)}đ"
+
             holder.quantityTxt.text = "Số lượng: ${item.Quantity}"
 
-            // Load image if available
             item.picUrl?.let { imageUrl ->
-                Glide.with(holder.itemView.context)
-                    .load(imageUrl)
-                    .placeholder(R.drawable.placeholder)
-                    .into(holder.imageView)
+                if (imageUrl.isNotBlank()) {
+                    Glide.with(holder.itemView.context)
+                        .load(imageUrl)
+                        .placeholder(R.drawable.placeholder)
+                        .into(holder.imageView)
+                } else {
+                    holder.imageView.setImageResource(R.drawable.placeholder)
+                }
             } ?: run {
                 holder.imageView.setImageResource(R.drawable.placeholder)
             }

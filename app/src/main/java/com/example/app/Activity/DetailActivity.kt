@@ -16,6 +16,7 @@ import com.example.app.Helper.TinyDB
 import com.example.app.Model.CommonResponse
 import com.example.app.Model.ItemsModel
 import com.example.app.Network.RetrofitClient
+import com.example.app.R
 import com.example.app.databinding.ActivityDetailBinding
 import com.example.app.ViewModel.MainViewModel
 import org.json.JSONObject
@@ -30,6 +31,7 @@ class DetailActivity : AppCompatActivity() {
 
     private var productId: Int = -1
     private var item: ItemsModel? = null
+    private var isInWishlist = false
 
     private lateinit var commentAdapter: CommentAdapter
 
@@ -67,6 +69,10 @@ class DetailActivity : AppCompatActivity() {
             startActivity(Intent(this, CartActivity::class.java))
         }
 
+        binding.favBtn.setOnClickListener {
+            toggleWishlist()
+        }
+
         val firstImage = item?.picUrl?.firstOrNull()
         Log.d("DetailActivity", "First image URL: $firstImage")
 
@@ -94,7 +100,10 @@ class DetailActivity : AppCompatActivity() {
 
         binding.titleTxt.text = item?.title ?: "Không có tên"
         binding.priceTxt.text = "${item?.price ?: 0}₫"
-        binding.raitingTxt.text = item?.rating?.toString() ?: "0.0"
+
+        val initialRating = item?.rating?.toFloat() ?: 0f
+        binding.raitingTxt.text = String.format("%.1f", initialRating)
+        binding.productRatingBar.rating = initialRating
 
         binding.derscriptionTxt.text = item?.description ?: "Không có mô tả"
     }
@@ -163,9 +172,17 @@ class DetailActivity : AppCompatActivity() {
 
         viewModel.productReviews.observe(this) { reviews ->
             Log.d("DetailActivity", "Reviews received from ViewModel: ${reviews.size}")
-            // Cập nhật adapter TRỰC TIẾP với ProductReviewModel
             commentAdapter.updateData(reviews)
             updateReviewCount(reviews.size)
+        }
+
+        viewModel.productRating.observe(this) { rating ->
+            Log.d("DetailActivity", "Product rating updated: $rating")
+
+            binding.raitingTxt.text = String.format("%.1f", rating)
+            binding.productRatingBar.rating = rating
+
+            item?.rating = rating.toDouble()
         }
 
         viewModel.errorMessage.observe(this) { error ->
@@ -199,6 +216,8 @@ class DetailActivity : AppCompatActivity() {
 
         viewModel.loadProductDetail(productId)
         viewModel.loadSpecifications(productId)
+
+        checkWishlistStatus()
     }
 
     private fun setupCommentList() {
@@ -214,8 +233,139 @@ class DetailActivity : AppCompatActivity() {
 
         Log.d("DetailActivity", "Loading reviews for product: $productId")
 
-        // Gọi ViewModel để load reviews
         viewModel.loadReviews(productId)
+    }
+
+    private fun toggleWishlist() {
+        if (productId == -1) return
+
+        val tinyDB = TinyDB(this)
+        val token = tinyDB.getString("token", "")
+
+        if (token.isEmpty()) {
+            Toast.makeText(this, "Vui lòng đăng nhập để thêm vào yêu thích", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        if (isInWishlist) {
+            removeFromWishlist()
+        } else {
+            addToWishlist()
+        }
+    }
+
+    private fun addToWishlist() {
+        showLoading(true, "Đang thêm vào yêu thích...")
+
+        RetrofitClient.wishlistApi().addToWishlist(productId.toLong())
+            .enqueue(object : Callback<CommonResponse> {
+                override fun onResponse(call: Call<CommonResponse>, response: Response<CommonResponse>) {
+                    showLoading(false)
+
+                    if (response.isSuccessful && response.body()?.success == true) {
+                        isInWishlist = true
+                        updateWishlistIcon()
+                        Toast.makeText(this@DetailActivity, "Đã thêm vào yêu thích", Toast.LENGTH_SHORT).show()
+                    } else {
+                        val errorMsg = response.body()?.message ?: "Thêm thất bại"
+                        Toast.makeText(this@DetailActivity, errorMsg, Toast.LENGTH_SHORT).show()
+                    }
+                }
+
+                override fun onFailure(call: Call<CommonResponse>, t: Throwable) {
+                    showLoading(false)
+                    Toast.makeText(this@DetailActivity, "Lỗi kết nối: ${t.message}", Toast.LENGTH_SHORT).show()
+                }
+            })
+    }
+
+    private fun removeFromWishlist() {
+        showLoading(true, "Đang xóa khỏi yêu thích...")
+
+        RetrofitClient.wishlistApi().removeFromWishlist(productId.toLong())
+            .enqueue(object : Callback<CommonResponse> {
+                override fun onResponse(call: Call<CommonResponse>, response: Response<CommonResponse>) {
+                    showLoading(false)
+
+                    if (response.isSuccessful && response.body()?.success == true) {
+                        isInWishlist = false
+                        updateWishlistIcon()
+                        Toast.makeText(this@DetailActivity, "Đã xóa khỏi yêu thích", Toast.LENGTH_SHORT).show()
+                    } else {
+                        val errorMsg = response.body()?.message ?: "Xóa thất bại"
+                        Toast.makeText(this@DetailActivity, errorMsg, Toast.LENGTH_SHORT).show()
+                    }
+                }
+
+                override fun onFailure(call: Call<CommonResponse>, t: Throwable) {
+                    showLoading(false)
+                    Toast.makeText(this@DetailActivity, "Lỗi kết nối: ${t.message}", Toast.LENGTH_SHORT).show()
+                }
+            })
+    }
+
+    private fun checkWishlistStatus() {
+        if (productId == -1) return
+
+        val tinyDB = TinyDB(this)
+        val token = tinyDB.getString("token", "")
+
+        if (token.isEmpty()) {
+            isInWishlist = false
+            updateWishlistIcon()
+            return
+        }
+
+        RetrofitClient.wishlistApi().checkWishlist(productId.toLong())
+            .enqueue(object : Callback<CommonResponse> {
+                override fun onResponse(call: Call<CommonResponse>, response: Response<CommonResponse>) {
+                    Log.d("DetailActivity", "Check wishlist response code: ${response.code()}")
+
+                    if (response.isSuccessful) {
+                        val result = response.body()
+                        Log.d("DetailActivity", "Check wishlist result: success=${result?.success}, data=${result?.data}")
+
+                        if (result?.success == true) {
+                            if (result.data != null && result.data is Map<*, *>) {
+                                val dataMap = result.data as Map<*, *>
+                                isInWishlist = dataMap["inWishlist"] == true
+                                Log.d("DetailActivity", "inWishlist from data: $isInWishlist")
+                            } else {
+                                isInWishlist = false
+                            }
+                        } else {
+                            isInWishlist = false
+                        }
+                    } else {
+                        Log.e("DetailActivity", "Check wishlist failed with code: ${response.code()}")
+                        isInWishlist = false
+                    }
+                    updateWishlistIcon()
+                }
+
+                override fun onFailure(call: Call<CommonResponse>, t: Throwable) {
+                    Log.e("DetailActivity", "Check wishlist error: ${t.message}")
+                    isInWishlist = false
+                    updateWishlistIcon()
+                }
+            })
+    }
+
+    private fun updateWishlistIcon() {
+        try {
+            if (isInWishlist) {
+                binding.favBtn.setImageResource(R.drawable.fav_icon)
+                binding.favBtn.setColorFilter(resources.getColor(R.color.red, null))
+                Log.d("DetailActivity", "Updated icon to: filled (in wishlist)")
+            } else {
+                binding.favBtn.setImageResource(R.drawable.fav_icon)
+                binding.favBtn.clearColorFilter()
+                Log.d("DetailActivity", "Updated icon to: empty (not in wishlist)")
+            }
+        } catch (e: Exception) {
+            Log.e("DetailActivity", "Error updating wishlist icon: ${e.message}")
+            binding.favBtn.setImageResource(R.drawable.fav_icon)
+        }
     }
 
     private fun addToCart() {
@@ -224,7 +374,6 @@ class DetailActivity : AppCompatActivity() {
             return
         }
 
-        // Lấy token từ TinyDB
         val tinyDB = TinyDB(this)
         val token = tinyDB.getString("token", "")
 
@@ -250,13 +399,13 @@ class DetailActivity : AppCompatActivity() {
                         if (result?.success == true) {
                             Toast.makeText(
                                 this@DetailActivity,
-                                "✅ Đã thêm vào giỏ hàng!",
+                                "Đã thêm vào giỏ hàng!",
                                 Toast.LENGTH_SHORT
                             ).show()
                         } else {
                             Toast.makeText(
                                 this@DetailActivity,
-                                "❌ ${result?.message ?: "Thêm vào giỏ hàng thất bại"}",
+                                "${result?.message ?: "Thêm vào giỏ hàng thất bại"}",
                                 Toast.LENGTH_SHORT
                             ).show()
                         }
@@ -267,13 +416,13 @@ class DetailActivity : AppCompatActivity() {
                             val errorMsg = errorJson.optString("message", "Lỗi không xác định")
                             Toast.makeText(
                                 this@DetailActivity,
-                                "❌ $errorMsg",
+                                " $errorMsg",
                                 Toast.LENGTH_SHORT
                             ).show()
                         } catch (e: Exception) {
                             Toast.makeText(
                                 this@DetailActivity,
-                                "❌ Lỗi server: ${response.code()}",
+                                "Lỗi server: ${response.code()}",
                                 Toast.LENGTH_SHORT
                             ).show()
                         }
@@ -284,7 +433,7 @@ class DetailActivity : AppCompatActivity() {
                     showLoading(false)
                     Toast.makeText(
                         this@DetailActivity,
-                        "❌ Lỗi kết nối: ${t.message}",
+                        "Lỗi kết nối: ${t.message}",
                         Toast.LENGTH_SHORT
                     ).show()
                 }
@@ -295,7 +444,6 @@ class DetailActivity : AppCompatActivity() {
         val commentText = binding.commentInput.text.toString().trim()
         val rating = binding.ratingBar.rating.toInt()
 
-        // Validate input
         if (commentText.isEmpty()) {
             Toast.makeText(this, "Vui lòng nhập nội dung đánh giá", Toast.LENGTH_SHORT).show()
             binding.commentInput.requestFocus()
@@ -307,7 +455,6 @@ class DetailActivity : AppCompatActivity() {
             return
         }
 
-        // Lấy token từ TinyDB
         val tinyDB = TinyDB(this)
         val token = tinyDB.getString("token", "")
 
@@ -335,21 +482,22 @@ class DetailActivity : AppCompatActivity() {
                         if (result?.success == true) {
                             Toast.makeText(
                                 this@DetailActivity,
-                                "✅ Đánh giá đã được gửi thành công!",
+                                "Đánh giá đã được gửi thành công!",
                                 Toast.LENGTH_SHORT
                             ).show()
 
-                            // Clear form
                             binding.commentInput.text.clear()
                             binding.ratingBar.rating = 5.0f
 
-                            // Tải lại danh sách đánh giá
                             loadReviews()
+
+                            val currentReviewCount = commentAdapter.itemCount
+                            viewModel.updateRatingAfterReview(rating, currentReviewCount)
 
                         } else {
                             Toast.makeText(
                                 this@DetailActivity,
-                                "❌ ${result?.message ?: "Gửi đánh giá thất bại"}",
+                                "${result?.message ?: "Gửi đánh giá thất bại"}",
                                 Toast.LENGTH_SHORT
                             ).show()
                         }
@@ -360,13 +508,13 @@ class DetailActivity : AppCompatActivity() {
                             val errorMsg = errorJson.optString("message", "Lỗi không xác định")
                             Toast.makeText(
                                 this@DetailActivity,
-                                "❌ $errorMsg",
+                                "$errorMsg",
                                 Toast.LENGTH_SHORT
                             ).show()
                         } catch (e: Exception) {
                             Toast.makeText(
                                 this@DetailActivity,
-                                "❌ Lỗi server: ${response.code()}",
+                                "Lỗi server: ${response.code()}",
                                 Toast.LENGTH_SHORT
                             ).show()
                         }
@@ -377,7 +525,7 @@ class DetailActivity : AppCompatActivity() {
                     showLoading(false)
                     Toast.makeText(
                         this@DetailActivity,
-                        "❌ Lỗi kết nối: ${t.message}",
+                        "Lỗi kết nối: ${t.message}",
                         Toast.LENGTH_SHORT
                     ).show()
                 }
@@ -393,10 +541,12 @@ class DetailActivity : AppCompatActivity() {
             binding.progressBar.visibility = View.VISIBLE
             binding.commentInputLayout.isEnabled = false
             binding.addToCartBtn.isEnabled = false
+            binding.submitCommentBtn.isEnabled = false
         } else {
             binding.progressBar.visibility = View.GONE
             binding.commentInputLayout.isEnabled = true
             binding.addToCartBtn.isEnabled = true
+            binding.submitCommentBtn.isEnabled = true
         }
     }
 }

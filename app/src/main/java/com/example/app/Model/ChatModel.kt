@@ -35,7 +35,6 @@ data class ChatMessage(
     @SerializedName("SenderType") val senderType: String?
 )
 
-// Response đơn giản cho sendMessage
 data class BaseResponse(
     @SerializedName("success") val success: Boolean,
     @SerializedName("message") val message: String?,

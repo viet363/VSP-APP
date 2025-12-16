@@ -6,12 +6,12 @@ import retrofit2.Call
 import retrofit2.http.*
 
 interface ReviewApiService {
-    @GET("api/mobile/reviews/product/{productId}")
+    @GET("mobile/reviews/product/{productId}")
     fun getProductReviews(
         @Path("productId") productId: Long
     ): Call<ApiResponse<List<ProductReviewModel>>>
 
-    @POST("api/mobile/reviews")
+    @POST("mobile/reviews")
     fun submitReview(@Body body: HashMap<String, Any>): Call<CommonResponse>
 
     @PUT("api/mobile/reviews/{reviewId}")

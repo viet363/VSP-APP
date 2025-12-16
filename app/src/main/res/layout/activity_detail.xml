@@ -100,14 +100,15 @@
                     android:textColor="@color/cardview_dark_background" />
             </LinearLayout>
 
-            <!-- Rating row -->
+            <!-- Rating row - ĐÃ CẬP NHẬT -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="16dp"
                 android:layout_marginEnd="16dp"
                 android:orientation="horizontal"
-                android:layout_marginTop="8dp">
+                android:layout_marginTop="8dp"
+                android:gravity="center_vertical">
 
                 <TextView
                     android:id="@+id/textView11"
@@ -119,20 +120,24 @@
                     android:textSize="14sp"
                     android:textStyle="bold" />
 
-                <ImageView
-                    android:id="@+id/imageView5"
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
-                    android:layout_gravity="center_vertical"
-                    android:layout_marginEnd="8dp"
-                    app:srcCompat="@drawable/star" />
+                <!-- RatingBar cho sản phẩm -->
+                <RatingBar
+                    android:id="@+id/productRatingBar"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="4dp"
+                    android:numStars="5"
+                    android:rating="0"
+                    android:stepSize="0.5"
+                    android:isIndicator="true"
+                    style="?android:attr/ratingBarStyleSmall" />
 
                 <TextView
                     android:id="@+id/raitingTxt"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:textColor="@color/black"
-                    android:text="5" />
+                    android:text="0.0" />
             </LinearLayout>
 
             <!-- Description -->
@@ -289,6 +294,7 @@
             </LinearLayout>
         </LinearLayout>
     </ScrollView>
+
     <ProgressBar
         android:id="@+id/progressBar"
         style="?android:attr/progressBarStyle"

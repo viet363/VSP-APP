@@ -23,7 +23,7 @@ data class ItemsModel(
     val description: String?,
     val price: Double,
     val picUrl: List<String>,
-    val rating: Double? = 0.0,
+    var rating: Double? = 0.0,
     val score: Float? = 0f,
     var numberInCart: Int = 1,
     val isRecommended: Boolean = false

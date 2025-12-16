@@ -1,17 +1,20 @@
 package com.example.app.Network
 
-import com.example.app.Model.WishlistModel
+import com.example.app.Model.CommonResponse
+import com.example.app.Model.WishlistResponse
 import retrofit2.Call
 import retrofit2.http.*
 
 interface WishlistApi {
+    @POST("mobile/wishlist/add/{productId}")
+    fun addToWishlist(@Path("productId") productId: Long): Call<CommonResponse>
 
-    @GET("wishlist/{userId}")
-    fun getWishlist(@Path("userId") userId: Long): Call<List<WishlistModel>>
+    @DELETE("mobile/wishlist/remove/{productId}")
+    fun removeFromWishlist(@Path("productId") productId: Long): Call<CommonResponse>
 
-    @POST("wishlist/add")
-    fun addWishlist(@Body body: HashMap<String, Any>): Call<WishlistModel>
+    @GET("mobile/wishlist")
+    fun getMyWishlist(): Call<WishlistResponse>
 
-    @DELETE("wishlist/delete/{id}")
-    fun deleteWishlist(@Path("id") id: Long): Call<WishlistModel>
+    @GET("mobile/wishlist/check/{productId}")
+    fun checkWishlist(@Path("productId") productId: Long): Call<CommonResponse>
 }

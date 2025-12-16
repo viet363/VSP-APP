@@ -42,12 +42,6 @@ class ManagmentCart(private val context: Context) {
         tinyDB.putString(cartKey, json)
     }
 
-    // Lấy danh sách ItemsModel (nếu cần tương thích với code cũ)
-    fun getLocalItems(): ArrayList<ItemsModel> {
-        val cartItems = getLocalCart()
-        return ArrayList(cartItems.map { it.item })
-    }
-
     /**
      * ĐỒNG BỘ TỪ SERVER VỀ LOCAL (TinyDB)
      */
@@ -132,19 +126,10 @@ class ManagmentCart(private val context: Context) {
         }
     }
 
-    // ===== THÊM METHOD clearCart() Ở ĐÂY =====
     fun clearCart() {
-        // Xóa giỏ hàng local
-        tinyDB.remove(cartKey)
-        Log.d(TAG, "Cleared local cart (using clearCart method)")
-    }
-
-    fun clearLocalCart() {
-        // Phương thức này vẫn giữ để tương thích
         tinyDB.remove(cartKey)
         Log.d(TAG, "Cleared local cart")
     }
-    // ========================================
 
     fun getCartCount(): Int {
         return getLocalCart().sumOf { it.quantity }
@@ -284,7 +269,6 @@ class ManagmentCart(private val context: Context) {
                 }
             })
     }
-
 
     fun getCartSummary(): CartSummary {
         val list = getLocalCart()

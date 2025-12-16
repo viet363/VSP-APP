@@ -6,6 +6,7 @@ import android.util.Log
 import android.view.View
 import android.widget.Toast
 import androidx.activity.viewModels
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -25,6 +26,18 @@ class MainActivity : BaseActivity() {
 
     private val TAG = "MainActivity"
 
+    private val filterLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == FilterActivity.RESULT_FILTER_APPLIED) {
+            val data = result.data
+            val filterRequest = data?.getSerializableExtra(FilterActivity.EXTRA_FILTER_RESULT) as? FilterRequest
+            filterRequest?.let {
+                applyFilterOnMain(it)
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -34,11 +47,9 @@ class MainActivity : BaseActivity() {
 
         tinyDB = TinyDB(this)
 
-        // SỬA: getLong() trả về Long, không phải String
-        val userId = tinyDB.getLong("userId", 0L) // Sửa default value là 0L (Long)
+        val userId = tinyDB.getLong("userId", 0L)
         Log.d(TAG, "Retrieved user ID (Long): $userId")
 
-        // SỬA: So sánh với 0L thay vì isEmpty()
         if (userId == 0L) {
             Log.w(TAG, "User ID is empty or not found, redirecting to LoginActivity")
             startActivity(Intent(this, LoginActivity::class.java))
@@ -53,16 +64,58 @@ class MainActivity : BaseActivity() {
 
         initBanner()
         initCategory()
-        initRecommended(userId) // Truyền userId (Long) thay vì String
+        initRecommended(userId)
         initBottomMenu()
         initSearch()
 
-        // Quan sát lỗi
+        initWishlistAndFilter()
+
         viewModel.errorMessage.observe(this) { error ->
             error?.let {
                 Log.e(TAG, "ViewModel error: $it")
             }
         }
+    }
+
+    private fun initWishlistAndFilter() {
+        binding.wishlistBtn.setOnClickListener {
+            openWishlistActivity()
+        }
+
+        binding.filterBtn.setOnClickListener {
+            openFilterActivity()
+        }
+
+        binding.wishlistBottomBtn.setOnClickListener {
+            openWishlistActivity()
+        }
+    }
+
+    private fun openWishlistActivity() {
+        val token = tinyDB.getString("token", "")
+
+        if (token.isEmpty()) {
+            Toast.makeText(this, "Vui lòng đăng nhập để xem sản phẩm yêu thích", Toast.LENGTH_SHORT).show()
+            val intent = Intent(this, LoginActivity::class.java)
+            startActivity(intent)
+        } else {
+            val intent = Intent(this, WishlistActivity::class.java)
+            startActivity(intent)
+        }
+    }
+
+    private fun openFilterActivity() {
+        val intent = Intent(this, FilterActivity::class.java)
+        filterLauncher.launch(intent)
+    }
+
+    private fun applyFilterOnMain(filterRequest: FilterRequest) {
+        Toast.makeText(this, "Đang áp dụng bộ lọc...", Toast.LENGTH_SHORT).show()
+
+        val intent = Intent(this, ListItemsActivity::class.java)
+        intent.putExtra("filterRequest", filterRequest)
+        intent.putExtra("title", "Kết quả lọc")
+        startActivity(intent)
     }
 
     private fun initSearch() {
@@ -79,14 +132,12 @@ class MainActivity : BaseActivity() {
             if (query.isEmpty()) {
                 Toast.makeText(this, "Vui lòng nhập tên sản phẩm", Toast.LENGTH_SHORT).show()
             } else {
-                // MỞ SearchActivity thay vì ListItemsActivity
                 val intent = Intent(this, SearchActivity::class.java)
                 intent.putExtra("searchQuery", query)
                 startActivity(intent)
                 overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
             }
 
-            // Reset UI
             binding.searchView.setQuery("", false)
             binding.searchView.visibility = View.GONE
             binding.btnSearchSubmit.visibility = View.GONE
@@ -94,12 +145,10 @@ class MainActivity : BaseActivity() {
         }
     }
 
-    // SỬA: Thay đổi parameter từ String sang Long
     private fun initRecommended(userId: Long) {
         binding.progressBarRecommend.visibility = View.VISIBLE
         binding.viewRecommendation.layoutManager = GridLayoutManager(this, 2)
 
-        // Set adapter rỗng ban đầu
         binding.viewRecommendation.adapter = RecommendedAdapter(mutableListOf())
 
         viewModel.isShowingFallback.observe(this) { isFallback ->
@@ -148,10 +197,7 @@ class MainActivity : BaseActivity() {
 
             if (list.isEmpty()) {
                 Log.w(TAG, "No categories found, using default categories")
-                binding.viewCategory.adapter = CategoryAdapter(
-                    mutableListOf(
-                    )
-                )
+                binding.viewCategory.adapter = CategoryAdapter(mutableListOf())
             } else {
                 Log.d(TAG, "Categories loaded: ${list.size} items")
                 binding.viewCategory.adapter = CategoryAdapter(list.toMutableList())
@@ -196,18 +242,29 @@ class MainActivity : BaseActivity() {
     }
 
     private fun initBottomMenu() {
+        binding.homeBtn.setOnClickListener {
+            val userId = tinyDB.getLong("userId", 0L)
+            if (userId > 0L) {
+                viewModel.loadRecommended(userId)
+            }
+        }
+
         binding.cartBtn.setOnClickListener {
             startActivity(Intent(this, CartActivity::class.java))
         }
-        binding.profileBtn.setOnClickListener {
-            startActivity(Intent(this, ProfileActivity::class.java))
-        }
-        binding.orderBtn.setOnClickListener {
-            startActivity(Intent(this, MyOrderActivity::class.java))
-        }
+
         binding.chatBtn.setOnClickListener {
             startActivity(Intent(this, MyChatActivity::class.java))
         }
+
+        binding.profileBtn.setOnClickListener {
+            startActivity(Intent(this, ProfileActivity::class.java))
+        }
+
+        binding.orderBtn.setOnClickListener {
+            startActivity(Intent(this, MyOrderActivity::class.java))
+        }
+
     }
 
     override fun onResume() {
