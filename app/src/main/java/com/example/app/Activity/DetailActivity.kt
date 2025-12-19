@@ -19,6 +19,7 @@ import com.example.app.Network.RetrofitClient
 import com.example.app.R
 import com.example.app.databinding.ActivityDetailBinding
 import com.example.app.ViewModel.MainViewModel
+import com.example.app.formatToVND
 import org.json.JSONObject
 import retrofit2.Call
 import retrofit2.Callback
@@ -99,7 +100,7 @@ class DetailActivity : AppCompatActivity() {
         }
 
         binding.titleTxt.text = item?.title ?: "Không có tên"
-        binding.priceTxt.text = "${item?.price ?: 0}₫"
+        binding.priceTxt.text = item?.price?.formatToVND() ?: "0 ₫"
 
         val initialRating = item?.rating?.toFloat() ?: 0f
         binding.raitingTxt.text = String.format("%.1f", initialRating)

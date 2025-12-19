@@ -81,7 +81,7 @@ class MainViewModel : ViewModel() {
                                 ItemsModel(it).copy(isRecommended = true)
                             }
 
-                            val minItems = 20
+                            val minItems = 100
 
                             if (recommendedList.size >= minItems) {
                                 Log.d(

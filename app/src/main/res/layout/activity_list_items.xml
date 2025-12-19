@@ -6,7 +6,6 @@
     android:layout_height="match_parent"
     tools:context=".Activity.ListItemsActivity">
 
-    <!-- Header với nút back, title và filter -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/headerLayout"
         android:layout_width="0dp"

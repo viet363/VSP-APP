@@ -10,6 +10,8 @@ import com.example.app.Activity.DetailActivity
 import com.example.app.Model.ItemsModel
 import com.example.app.R
 import com.example.app.databinding.ViewholderRecommendedBinding
+import com.example.app.formatToVND
+import java.text.DecimalFormat
 
 class RecommendedAdapter(private var items: List<ItemsModel> = emptyList()) :
     RecyclerView.Adapter<RecommendedAdapter.Viewholder>() {
@@ -33,9 +35,8 @@ class RecommendedAdapter(private var items: List<ItemsModel> = emptyList()) :
         val item = items[position]
 
         with(holder.binding) {
-            titleTxt.text = item.title
-            priceTxt.text = "${item.price}$"
-            ratingTxt.text = item.rating.toString()
+            titleTxt.text = item.title ?: "Không có tên"
+            priceTxt.text = item.price.formatToVND()
 
             val img = item.picUrl.firstOrNull()
 

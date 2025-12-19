@@ -23,7 +23,7 @@
         <item name="android:windowLightStatusBar">false</item>
     </style>
 
-    <style name="Theme.AppCompat.Light.NoActionBar" parent="Theme.AppCompat.Light.NoActionBar">
+    <style name="Theme.CustomAppCompat" parent="Theme.AppCompat.Light.NoActionBar">
         <item name="colorPrimary">@color/green</item>
         <item name="colorPrimaryDark">@color/green</item>
         <item name="colorAccent">@color/green</item>

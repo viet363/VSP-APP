@@ -42,7 +42,7 @@
         <activity
             android:name=".Activity.SearchActivity"
             android:exported="false"
-            android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+            android:theme="@style/Theme.App.NoActionBar"
             android:windowSoftInputMode="adjustResize" />
 
         <activity

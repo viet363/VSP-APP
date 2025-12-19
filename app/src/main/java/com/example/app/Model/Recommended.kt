@@ -23,7 +23,7 @@ data class ItemsModel(
     val description: String?,
     val price: Double,
     val picUrl: List<String>,
-    var rating: Double? = 0.0,
+    var rating: Double? = null,
     val score: Float? = 0f,
     var numberInCart: Int = 1,
     val isRecommended: Boolean = false
@@ -35,9 +35,17 @@ data class ItemsModel(
         description = r.Description,
         price = r.Price,
         picUrl = if (!r.picUrl.isNullOrEmpty()) listOf(r.picUrl) else emptyList(),
-        score = r.Score ?: 0f,
+        rating = r.Score?.toDouble() ?: 0.0,
+        score = r.Score,
         numberInCart = 1,
         isRecommended = true
     )
 }
 
+fun ItemsModel.getFormattedRating(): String {
+    return if ((this.rating ?: 0.0) > 0) {
+        String.format("%.1f", this.rating)
+    } else {
+        "0.0"
+    }
+}

@@ -9,6 +9,7 @@ import com.bumptech.glide.Glide
 import com.example.app.Activity.DetailActivity
 import com.example.app.Model.ItemsModel
 import com.example.app.databinding.ViewholderListItemBinding
+import com.example.app.formatToVND
 
 class ListItemsAdapter(private val items: MutableList<ItemsModel>) :
     RecyclerView.Adapter<ListItemsAdapter.Viewholder>() {
@@ -30,8 +31,7 @@ class ListItemsAdapter(private val items: MutableList<ItemsModel>) :
 
         with(holder.binding) {
             titleTxt.text = item.title
-            priceTxt.text = "${item.price}$"
-            ratingTxt.text = item.rating.toString()
+            priceTxt.text = item?.price?.formatToVND() ?: "0 ₫"
 
             if (item.picUrl.isNotEmpty()) {
                 Glide.with(holder.itemView.context)

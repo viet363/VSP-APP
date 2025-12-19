@@ -10,6 +10,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.example.app.Model.ItemsModel
 import com.example.app.R
+import com.example.app.formatToVND
 
 class SearchAdapter(
     private var items: MutableList<ItemsModel>,
@@ -31,7 +32,8 @@ class SearchAdapter(
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val item = items[position]
         holder.title.text = item.title ?: "Không có tên"
-        holder.price.text = "đ${item.price}"
+        holder.price.text = item.price.formatToVND()
+
 
         if (item.picUrl.isNotEmpty()) {
             Glide.with(holder.itemView.context)
