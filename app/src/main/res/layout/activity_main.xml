@@ -110,6 +110,9 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="8dp"
+                    android:elevation="8dp"
+                    android:clickable="true"
+                    android:focusable="true"
                     app:cardCornerRadius="8dp"
                     app:cardElevation="2dp">
 
@@ -120,12 +123,13 @@
                         android:paddingHorizontal="12dp"
                         android:paddingVertical="8dp"
                         android:gravity="center_vertical"
-                        android:clickable="true"
-                        android:focusable="true">
+                        android:clickable="false"
+                        android:focusable="false"
+                        android:foreground="?attr/selectableItemBackground">
 
                         <ImageView
-                            android:layout_width="18dp"
-                            android:layout_height="18dp"
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
                             android:src="@drawable/baseline_filter_list_24" />
 
                         <TextView

@@ -77,8 +77,18 @@ class MainViewModel : ViewModel() {
                         Log.d("MainViewModel", "Recommended items count: $recommendedCount")
 
                         if (body != null && body.success && !body.data.isNullOrEmpty()) {
-                            val recommendedList = body.data.map {
-                                ItemsModel(it).copy(isRecommended = true)
+                            val recommendedList = body.data.map { recommendedProduct ->
+                                ItemsModel(
+                                    id = recommendedProduct.Id,
+                                    title = recommendedProduct.Product_name,
+                                    description = recommendedProduct.Description,
+                                    price = recommendedProduct.Price,
+                                    picUrlString = recommendedProduct.picUrl,
+                                    rating = recommendedProduct.Score?.toDouble(),
+                                    score = recommendedProduct.Score,
+                                    numberInCart = 1,
+                                    isRecommended = true
+                                )
                             }
 
                             val minItems = 100
@@ -104,7 +114,6 @@ class MainViewModel : ViewModel() {
                             loadFallbackProducts(20)
                         }
                     } else {
-                        // API đề xuất lỗi
                         Log.d("MainViewModel", "Recommend API error. Loading fallback...")
                         loadFallbackProducts(20)
                     }
@@ -117,7 +126,6 @@ class MainViewModel : ViewModel() {
             })
     }
 
-    // Hàm bổ sung sản phẩm (khi đề xuất không đủ)
     private fun loadAdditionalProducts(recommendedList: List<ItemsModel>, minItems: Int) {
         Log.d("MainViewModel", "Loading additional products...")
 
@@ -468,41 +476,80 @@ class MainViewModel : ViewModel() {
     }
 
     fun filterProducts(filterRequest: FilterRequest) {
-        Log.d("MainViewModel", "Applying filter: $filterRequest")
+        Log.d("MainViewModel", "=== FILTER PRODUCTS CALLED ===")
+        Log.d("MainViewModel", "Filter request: $filterRequest")
+
         isLoading.value = true
         errorMessage.value = null
+
         recommended.value = emptyList()
+        searchResults.value = emptyList()
 
         RetrofitClient.productsApi().filterProducts(filterRequest)
-            .enqueue(object : Callback<FilterResponse> {
+            .enqueue(object : Callback<FilterApiResponse> {
                 override fun onResponse(
-                    call: Call<FilterResponse>,
-                    response: Response<FilterResponse>
+                    call: Call<FilterApiResponse>,
+                    response: Response<FilterApiResponse>
                 ) {
                     isLoading.value = false
+                    Log.d("MainViewModel", "Filter response code: ${response.code()}")
 
                     if (response.isSuccessful) {
                         val result = response.body()
-                        if (result?.success == true && !result.data.isNullOrEmpty()) {
-                            val filteredItems = result.data.map { it.copy(isRecommended = false) }
-                            recommended.value = filteredItems
-                            Log.d(
-                                "MainViewModel",
-                                "Filter applied: ${filteredItems.size} products found"
+                        Log.d("MainViewModel", "Filter response success: ${result?.success}")
+                        Log.d("MainViewModel", "Filter data count: ${result?.data?.size ?: 0}")
+
+                        // Debug chi tiết
+                        result?.data?.forEachIndexed { index, item ->
+                            Log.d("MainViewModel",
+                                "Item $index: id=${item.id}, title=${item.productName?.take(20)}, " +
+                                        "price=${item.price}, picUrl length=${item.picUrl?.length ?: 0}"
                             )
+                        }
+
+                        if (result?.success == true && !result.data.isNullOrEmpty()) {
+                            // Convert FilterProduct sang ItemsModel
+                            val filteredItems = result.data.mapNotNull { filterItem ->
+                                try {
+                                    filterItem.toItemsModel()
+                                } catch (e: Exception) {
+                                    Log.e("MainViewModel", "Error converting item ${filterItem.id}: ${e.message}")
+                                    null
+                                }
+                            }
+
+                            Log.d("MainViewModel", "Filter successful: ${filteredItems.size} products found")
+
+                            if (filteredItems.isNotEmpty()) {
+                                recommended.value = filteredItems
+                                loadBannersFromRecommended(filteredItems)
+                            } else {
+                                sendError("Không thể parse dữ liệu sản phẩm")
+                                recommended.value = emptyList()
+                            }
                         } else {
                             val message = result?.message ?: "Không có sản phẩm phù hợp"
+                            Log.w("MainViewModel", "Filter empty: $message")
                             sendError(message)
                             recommended.value = emptyList()
                         }
                     } else {
+                        try {
+                            val errorBody = response.errorBody()?.string()
+                            Log.e("MainViewModel", "Filter error ${response.code()}: $errorBody")
+                        } catch (e: Exception) {
+                            Log.e("MainViewModel", "Cannot read error body: ${e.message}")
+                        }
+
                         sendError("Lỗi lọc sản phẩm: ${response.code()}")
                         recommended.value = emptyList()
                     }
                 }
 
-                override fun onFailure(call: Call<FilterResponse>, t: Throwable) {
+                override fun onFailure(call: Call<FilterApiResponse>, t: Throwable) {
                     isLoading.value = false
+                    Log.e("MainViewModel", "Filter failed: ${t.message}")
+                    t.printStackTrace()
                     sendError("Lỗi kết nối: ${t.message}")
                     recommended.value = emptyList()
                 }

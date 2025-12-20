@@ -22,23 +22,34 @@ data class ItemsModel(
     val title: String?,
     val description: String?,
     val price: Double,
-    val picUrl: List<String>,
+    val picUrl: List<String>, // Đang là List<String>
     var rating: Double? = null,
     val score: Float? = 0f,
     var numberInCart: Int = 1,
     val isRecommended: Boolean = false
 ) : Serializable {
 
-    constructor(r: RecommendedProduct) : this(
-        id = r.Id,
-        title = r.Product_name,
-        description = r.Description,
-        price = r.Price,
-        picUrl = if (!r.picUrl.isNullOrEmpty()) listOf(r.picUrl) else emptyList(),
-        rating = r.Score?.toDouble() ?: 0.0,
-        score = r.Score,
-        numberInCart = 1,
-        isRecommended = true
+    @JvmOverloads
+    constructor(
+        id: Int,
+        title: String?,
+        description: String?,
+        price: Double,
+        picUrlString: String?,
+        rating: Double? = null,
+        score: Float? = 0f,
+        numberInCart: Int = 1,
+        isRecommended: Boolean = false
+    ) : this(
+        id = id,
+        title = title,
+        description = description,
+        price = price,
+        picUrl = if (picUrlString.isNullOrEmpty()) emptyList() else listOf(picUrlString),
+        rating = rating,
+        score = score,
+        numberInCart = numberInCart,
+        isRecommended = isRecommended
     )
 }
 

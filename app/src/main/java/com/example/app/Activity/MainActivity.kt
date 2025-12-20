@@ -3,8 +3,10 @@ package com.example.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
+import android.view.MotionEvent
 import android.view.View
 import android.widget.Toast
+import androidx.lifecycle.Observer
 import androidx.activity.viewModels
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.recyclerview.widget.GridLayoutManager
@@ -33,6 +35,7 @@ class MainActivity : BaseActivity() {
             val data = result.data
             val filterRequest = data?.getSerializableExtra(FilterActivity.EXTRA_FILTER_RESULT) as? FilterRequest
             filterRequest?.let {
+                Log.d(TAG, "Filter request received from FilterActivity: $filterRequest")
                 applyFilterOnMain(it)
             }
         }
@@ -46,6 +49,20 @@ class MainActivity : BaseActivity() {
         Log.d(TAG, "MainActivity started")
 
         tinyDB = TinyDB(this)
+
+        binding.filterBtn.isClickable = true
+        binding.filterBtn.isFocusable = true
+        binding.filterBtn.isEnabled = true
+
+        binding.filterBtn.setOnTouchListener { v, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    Log.d(TAG, "Filter button touched")
+                    v.performClick()
+                }
+            }
+            false
+        }
 
         val userId = tinyDB.getLong("userId", 0L)
         Log.d(TAG, "Retrieved user ID (Long): $userId")
@@ -78,12 +95,28 @@ class MainActivity : BaseActivity() {
     }
 
     private fun initWishlistAndFilter() {
+        Log.d(TAG, "Initializing filter button click listener")
+
         binding.wishlistBtn.setOnClickListener {
             openWishlistActivity()
         }
 
         binding.filterBtn.setOnClickListener {
+            Log.d(TAG, "Filter button clicked")
+
+            binding.filterBtn.animate().scaleX(0.95f).scaleY(0.95f).setDuration(100)
+                .withEndAction {
+                    binding.filterBtn.animate().scaleX(1f).scaleY(1f).setDuration(100).start()
+                }.start()
+
+            Toast.makeText(this, "Đang mở bộ lọc...", Toast.LENGTH_SHORT).show()
+
             openFilterActivity()
+        }
+
+        binding.filterBtn.setOnLongClickListener {
+            Toast.makeText(this, "Lọc sản phẩm theo giá, đánh giá, kho hàng", Toast.LENGTH_LONG).show()
+            true
         }
 
         binding.wishlistBottomBtn.setOnClickListener {
@@ -105,17 +138,57 @@ class MainActivity : BaseActivity() {
     }
 
     private fun openFilterActivity() {
-        val intent = Intent(this, FilterActivity::class.java)
-        filterLauncher.launch(intent)
+        try {
+            val intent = Intent(this, FilterActivity::class.java)
+            filterLauncher.launch(intent)
+
+            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error opening FilterActivity: ${e.message}")
+            Toast.makeText(this, "Không thể mở bộ lọc. Vui lòng thử lại!", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun applyFilterOnMain(filterRequest: FilterRequest) {
+        Log.d(TAG, "APPLYING FILTER ON MAIN")
+        Log.d(TAG, "Filter request: $filterRequest")
+
         Toast.makeText(this, "Đang áp dụng bộ lọc...", Toast.LENGTH_SHORT).show()
 
-        val intent = Intent(this, ListItemsActivity::class.java)
-        intent.putExtra("filterRequest", filterRequest)
-        intent.putExtra("title", "Kết quả lọc")
-        startActivity(intent)
+        viewModel.filterProducts(filterRequest)
+
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            val filteredItems = viewModel.recommended.value ?: emptyList()
+
+            if (filteredItems.isNotEmpty()) {
+                Log.d(TAG, "Filter successful, opening ListItemsActivity with ${filteredItems.size} products")
+
+                val intent = Intent(this, ListItemsActivity::class.java)
+                intent.putExtra("filterRequest", filterRequest)
+                intent.putExtra("title", "Kết quả lọc (${filteredItems.size} sản phẩm)")
+
+                val serializableList = ArrayList(filteredItems.map { it.toSerializableItem() })
+                intent.putExtra("filteredProducts", serializableList)
+
+                startActivity(intent)
+                overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+            } else {
+                Toast.makeText(this, "Không tìm thấy sản phẩm phù hợp", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "No products found for filter")
+            }
+        }, 1000)
+    }
+
+    // Extension function để convert ItemsModel thành Serializable
+    private fun ItemsModel.toSerializableItem(): SerializableItemsModel {
+        return SerializableItemsModel(
+            id = this.id.toLong(),
+            name = this.title ?: "",
+            price = this.price,
+            picUrl = this.picUrl,
+            rating = (this.rating ?: 0.0).toFloat(),
+            isRecommended = this.isRecommended
+        )
     }
 
     private fun initSearch() {

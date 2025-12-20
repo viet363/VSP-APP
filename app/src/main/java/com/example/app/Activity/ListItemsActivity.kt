@@ -10,16 +10,12 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Observer
 import androidx.recyclerview.widget.GridLayoutManager
-import com.example.app.Adapter.ListItemsAdapter
+import com.example.app.Adapter.RecommendedAdapter
 import com.example.app.Helper.TinyDB
 import com.example.app.Model.FilterRequest
-import com.example.app.Model.FilterResponse
-import com.example.app.Network.RetrofitClient
+import com.example.app.Model.SerializableItemsModel
 import com.example.app.ViewModel.MainViewModel
 import com.example.app.databinding.ActivityListItemsBinding
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
 
 class ListItemsActivity : AppCompatActivity() {
 
@@ -29,6 +25,8 @@ class ListItemsActivity : AppCompatActivity() {
     private var id: String = ""
     private var title: String = ""
     private var searchQuery: String = ""
+    private var filterRequest: FilterRequest? = null
+    private var filteredProducts: ArrayList<SerializableItemsModel>? = null
 
     private val TAG = "ListItemsActivity"
 
@@ -37,8 +35,8 @@ class ListItemsActivity : AppCompatActivity() {
     ) { result ->
         if (result.resultCode == FilterActivity.RESULT_FILTER_APPLIED) {
             val data = result.data
-            val filterRequest = data?.getSerializableExtra(FilterActivity.EXTRA_FILTER_RESULT) as? FilterRequest
-            filterRequest?.let {
+            val newFilterRequest = data?.getSerializableExtra(FilterActivity.EXTRA_FILTER_RESULT) as? FilterRequest
+            newFilterRequest?.let {
                 applyFilter(it)
             }
         }
@@ -51,14 +49,50 @@ class ListItemsActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         getBundle()
+        setupFilterButton()
 
-        if (searchQuery.isNotEmpty()) {
+        // Ưu tiên hiển thị sản phẩm đã filter từ MainActivity
+        if (filteredProducts != null && filteredProducts!!.isNotEmpty()) {
+            showFilteredProducts(filteredProducts!!)
+        } else if (filterRequest != null) {
+            // Nếu có filterRequest nhưng chưa có sản phẩm, gọi API filter
+            applyFilter(filterRequest!!)
+        } else if (searchQuery.isNotEmpty()) {
             setupSearchObservers()
             callSearchApi(searchQuery)
         } else {
             setupRecommendedObserver()
             initList()
         }
+    }
+
+    private fun setupFilterButton() {
+        binding.filterBtn.setOnClickListener {
+            openFilterActivity()
+        }
+    }
+
+    private fun showFilteredProducts(products: List<SerializableItemsModel>) {
+        Log.d(TAG, "Showing ${products.size} filtered products")
+
+        // Convert SerializableItemsModel back to ItemsModel
+        val itemsList = products.map { serializableItem ->
+            com.example.app.Model.ItemsModel(
+                id = serializableItem.id.toInt(),
+                title = serializableItem.name,
+                description = null,
+                price = serializableItem.price,
+                picUrl = serializableItem.picUrl.toMutableList(),
+                rating = serializableItem.rating.toDouble(),
+                isRecommended = serializableItem.isRecommended
+            )
+        }
+
+        // Hiển thị danh sách
+        binding.viewList.layoutManager = GridLayoutManager(this, 2)
+        binding.viewList.adapter = RecommendedAdapter(itemsList.toMutableList())
+        binding.categoryTxt.text = "Kết quả lọc (${itemsList.size} sản phẩm)"
+        binding.progressBarList.visibility = View.GONE
     }
 
     private fun setupSearchObservers() {
@@ -70,12 +104,12 @@ class ListItemsActivity : AppCompatActivity() {
 
                 if (!results.isNullOrEmpty()) {
                     Log.d(TAG, "Search API success: ${results.size} items")
-                    binding.categoryTxt.text = "Kết quả cho: $searchQuery"
+                    binding.categoryTxt.text = "Kết quả cho: '$searchQuery' (${results.size} sản phẩm)"
 
                     binding.viewList.layoutManager = GridLayoutManager(this, 2)
-                    binding.viewList.adapter = ListItemsAdapter(results.toMutableList())
+                    binding.viewList.adapter = RecommendedAdapter(results.toMutableList())
                 } else {
-                    binding.categoryTxt.text = "Không tìm thấy sản phẩm"
+                    binding.categoryTxt.text = "Không tìm thấy sản phẩm cho '$searchQuery'"
                     binding.viewList.adapter = null
                 }
             }
@@ -135,7 +169,7 @@ class ListItemsActivity : AppCompatActivity() {
                     }
 
                     binding.viewList.layoutManager = GridLayoutManager(this, 2)
-                    binding.viewList.adapter = ListItemsAdapter(items.toMutableList())
+                    binding.viewList.adapter = RecommendedAdapter(items.toMutableList())
 
                     val recommendedCount = items.count { it.isRecommended }
                     Log.d(TAG, "Hiển thị: ${items.size} sản phẩm (${recommendedCount} đề xuất, ${items.size - recommendedCount} bổ sung)")
@@ -186,7 +220,7 @@ class ListItemsActivity : AppCompatActivity() {
     private fun callSearchApi(query: String) {
         Log.d(TAG, "Calling search API for query: $query")
         binding.progressBarList.visibility = View.VISIBLE
-        binding.categoryTxt.text = "Đang tìm kiếm: $query"
+        binding.categoryTxt.text = "Đang tìm kiếm: '$query'..."
 
         viewModel.searchProducts(query)
     }
@@ -228,47 +262,62 @@ class ListItemsActivity : AppCompatActivity() {
         id = intent.getStringExtra("id") ?: ""
         title = intent.getStringExtra("title") ?: ""
         searchQuery = intent.getStringExtra("searchQuery") ?: ""
+        filterRequest = intent.getSerializableExtra("filterRequest") as? FilterRequest
+        filteredProducts = intent.getSerializableExtra("filteredProducts") as? ArrayList<SerializableItemsModel>
 
-        Log.d(TAG, "Received: id=$id, title='$title', searchQuery='$searchQuery'")
+        Log.d(TAG, "Received: id='$id', title='$title', searchQuery='$searchQuery'")
+        Log.d(TAG, "Filter request: $filterRequest")
+        Log.d(TAG, "Filtered products: ${filteredProducts?.size ?: 0} items")
     }
 
     private fun openFilterActivity() {
         val intent = Intent(this, FilterActivity::class.java)
+        // Nếu đang filter, truyền filterRequest hiện tại để giữ các giá trị
+        filterRequest?.let {
+            intent.putExtra("currentFilter", it)
+        }
         filterLauncher.launch(intent)
     }
 
     private fun applyFilter(filterRequest: FilterRequest) {
+        Log.d(TAG, "=== APPLYING FILTER IN LISTITEMSACTIVITY ===")
+        Log.d(TAG, "Filter request: $filterRequest")
+
+        this.filterRequest = filterRequest
         binding.progressBarList.visibility = View.VISIBLE
         binding.categoryTxt.text = "Đang lọc sản phẩm..."
 
-        RetrofitClient.productsApi().filterProducts(filterRequest)
-            .enqueue(object : Callback<FilterResponse> {
-                override fun onResponse(call: Call<FilterResponse>, response: Response<FilterResponse>) {
-                    binding.progressBarList.visibility = View.GONE
+        // Dừng tất cả observer cũ
+        viewModel.recommended.removeObservers(this)
+        viewModel.searchResults.removeObservers(this)
 
-                    if (response.isSuccessful) {
-                        val result = response.body()
-                        if (result?.success == true && !result.data.isNullOrEmpty()) {
-                            binding.viewList.layoutManager = GridLayoutManager(this@ListItemsActivity, 2)
-                            binding.viewList.adapter = ListItemsAdapter(result.data.toMutableList())
-                            binding.categoryTxt.text = "Kết quả lọc (${result.data.size} sản phẩm)"
-                            Log.d(TAG, "Filter applied: ${result.data.size} products found")
-                        } else {
-                            binding.categoryTxt.text = "Không tìm thấy sản phẩm phù hợp"
-                            binding.viewList.adapter = null
-                            Toast.makeText(this@ListItemsActivity, result?.message ?: "Không có sản phẩm phù hợp", Toast.LENGTH_SHORT).show()
-                        }
-                    } else {
-                        Toast.makeText(this@ListItemsActivity, "Lỗi lọc sản phẩm", Toast.LENGTH_SHORT).show()
-                        binding.categoryTxt.text = "Lỗi lọc sản phẩm"
-                    }
-                }
+        // Gọi ViewModel để filter (thay vì gọi Retrofit trực tiếp)
+        viewModel.filterProducts(filterRequest)
 
-                override fun onFailure(call: Call<FilterResponse>, t: Throwable) {
-                    binding.progressBarList.visibility = View.GONE
-                    Toast.makeText(this@ListItemsActivity, "Lỗi kết nối: ${t.message}", Toast.LENGTH_SHORT).show()
-                    binding.categoryTxt.text = "Lỗi kết nối"
-                }
-            })
+        // Observer kết quả filter
+        viewModel.recommended.observe(this, Observer { items ->
+            binding.progressBarList.visibility = View.GONE
+
+            if (!items.isNullOrEmpty()) {
+                Log.d(TAG, "Filter successful: ${items.size} products found")
+                binding.viewList.layoutManager = GridLayoutManager(this, 2)
+                binding.viewList.adapter = RecommendedAdapter(items.toMutableList())
+                binding.categoryTxt.text = "Kết quả lọc (${items.size} sản phẩm)"
+            } else {
+                binding.categoryTxt.text = "Không tìm thấy sản phẩm phù hợp"
+                binding.viewList.adapter = null
+                Toast.makeText(this, "Không có sản phẩm phù hợp với bộ lọc", Toast.LENGTH_SHORT).show()
+            }
+        })
+
+        // Observer lỗi
+        viewModel.errorMessage.observe(this, Observer { error ->
+            error?.let {
+                binding.progressBarList.visibility = View.GONE
+                Toast.makeText(this, "Lỗi lọc: $it", Toast.LENGTH_SHORT).show()
+                binding.categoryTxt.text = "Lỗi lọc sản phẩm"
+                Log.e(TAG, "Filter error: $it")
+            }
+        })
     }
 }

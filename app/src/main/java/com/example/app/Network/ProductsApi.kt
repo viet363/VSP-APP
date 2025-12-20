@@ -24,5 +24,5 @@ interface ProductsApi {
     fun searchProducts(@Query("query") query: String): Call<ProductListResponse>
 
     @POST("mobile/products/filter")
-    fun filterProducts(@Body filter: FilterRequest): Call<FilterResponse>
+    fun filterProducts(@Body filter: FilterRequest): Call<FilterApiResponse>
 }
