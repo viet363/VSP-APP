@@ -1,6 +1,8 @@
 package com.example.app.Activity
 
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.MotionEvent
@@ -9,6 +11,8 @@ import android.widget.Toast
 import androidx.lifecycle.Observer
 import androidx.activity.viewModels
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -17,14 +21,19 @@ import com.example.app.Adapter.RecommendedAdapter
 import com.example.app.Adapter.SliderAdapter
 import com.example.app.Helper.TinyDB
 import com.example.app.Model.*
+import com.example.app.Network.RetrofitClient
 import com.example.app.ViewModel.MainViewModel
 import com.example.app.databinding.ActivityMainBinding
+import com.example.app.service.NotificationPolling
+import android.Manifest
 
 class MainActivity : BaseActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var tinyDB: TinyDB
     private val viewModel: MainViewModel by viewModels()
+
+    private var notificationPolling: NotificationPolling? = null
 
     private val TAG = "MainActivity"
 
@@ -41,6 +50,10 @@ class MainActivity : BaseActivity() {
         }
     }
 
+    companion object {
+        private const val NOTIFICATION_PERMISSION_REQUEST_CODE = 1001
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -53,7 +66,7 @@ class MainActivity : BaseActivity() {
         binding.filterBtn.isClickable = true
         binding.filterBtn.isFocusable = true
         binding.filterBtn.isEnabled = true
-
+        checkNotificationPermission()
         binding.filterBtn.setOnTouchListener { v, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
@@ -76,12 +89,18 @@ class MainActivity : BaseActivity() {
 
         Log.d(TAG, "User ID found: $userId")
 
+        notificationPolling = NotificationPolling(
+            this,
+            RetrofitClient.notificationApi(),
+            userId
+        )
+        notificationPolling?.start()
+
         val profileName = tinyDB.getString("profile_name", "Khách hàng thân mến")
         binding.nametitle.text = profileName
 
         initBanner()
         initCategory()
-        initRecommended(userId)
         initBottomMenu()
         initSearch()
 
@@ -90,7 +109,49 @@ class MainActivity : BaseActivity() {
         viewModel.errorMessage.observe(this) { error ->
             error?.let {
                 Log.e(TAG, "ViewModel error: $it")
+                Toast.makeText(this, "Lỗi: $it", Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    private fun checkNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_DENIED
+            ) {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                    NOTIFICATION_PERMISSION_REQUEST_CODE
+                )
+            }
+        }
+    }
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+        if (requestCode == NOTIFICATION_PERMISSION_REQUEST_CODE) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+
+            }
+        }
+    }
+
+
+    override fun onResume() {
+        super.onResume()
+        Log.d(TAG, "MainActivity resumed - Loading recommended products")
+
+        // Luôn load sản phẩm đề xuất khi resume
+        val userId = tinyDB.getLong("userId", 0L)
+        if (userId > 0L) {
+            initRecommended(userId)
         }
     }
 
@@ -155,31 +216,51 @@ class MainActivity : BaseActivity() {
 
         Toast.makeText(this, "Đang áp dụng bộ lọc...", Toast.LENGTH_SHORT).show()
 
+        // Clear sản phẩm hiện tại trước khi filter
+        binding.viewRecommendation.adapter = RecommendedAdapter(mutableListOf())
+        binding.progressBarRecommend.visibility = View.VISIBLE
+        binding.recommendedTitle.text = "Đang lọc sản phẩm..."
+
         viewModel.filterProducts(filterRequest)
 
-        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-            val filteredItems = viewModel.recommended.value ?: emptyList()
+        // Sử dụng observer thay vì Handler
+        viewModel.recommended.observe(this, Observer { items ->
+            if (viewModel.isLoading.value == false) {
+                if (!items.isNullOrEmpty()) {
+                    Log.d(TAG, "Filter successful, opening ListItemsActivity with ${items.size} products")
 
-            if (filteredItems.isNotEmpty()) {
-                Log.d(TAG, "Filter successful, opening ListItemsActivity with ${filteredItems.size} products")
+                    val intent = Intent(this, ListItemsActivity::class.java)
+                    intent.putExtra("filterRequest", filterRequest)
+                    intent.putExtra("title", "Kết quả lọc (${items.size} sản phẩm)")
 
-                val intent = Intent(this, ListItemsActivity::class.java)
-                intent.putExtra("filterRequest", filterRequest)
-                intent.putExtra("title", "Kết quả lọc (${filteredItems.size} sản phẩm)")
+                    val serializableList = ArrayList(items.map { it.toSerializableItem() })
+                    intent.putExtra("filteredProducts", serializableList)
 
-                val serializableList = ArrayList(filteredItems.map { it.toSerializableItem() })
-                intent.putExtra("filteredProducts", serializableList)
+                    startActivity(intent)
+                    overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
 
-                startActivity(intent)
-                overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
-            } else {
-                Toast.makeText(this, "Không tìm thấy sản phẩm phù hợp", Toast.LENGTH_SHORT).show()
-                Log.d(TAG, "No products found for filter")
+                    // Reset lại sản phẩm trong MainActivity
+                    resetMainToRecommended()
+                } else {
+                    Toast.makeText(this, "Không tìm thấy sản phẩm phù hợp", Toast.LENGTH_SHORT).show()
+                    Log.d(TAG, "No products found for filter")
+                    resetMainToRecommended()
+                }
             }
-        }, 1000)
+        })
     }
 
-    // Extension function để convert ItemsModel thành Serializable
+    private fun resetMainToRecommended() {
+        Log.d(TAG, "Resetting MainActivity to show recommended products")
+
+        viewModel.recommended.removeObservers(this)
+
+        val userId = tinyDB.getLong("userId", 0L)
+        if (userId > 0L) {
+            initRecommended(userId)
+        }
+    }
+
     private fun ItemsModel.toSerializableItem(): SerializableItemsModel {
         return SerializableItemsModel(
             id = this.id.toLong(),
@@ -251,7 +332,15 @@ class MainActivity : BaseActivity() {
             }
         }
 
+        // Observer cho loading
+        viewModel.isLoading.observe(this) { isLoading ->
+            if (isLoading) {
+                binding.progressBarRecommend.visibility = View.VISIBLE
+            }
+        }
+
         if (userId > 0L) {
+            Log.d(TAG, "Loading recommended products for user: $userId")
             viewModel.loadRecommended(userId)
         } else {
             binding.progressBarRecommend.visibility = View.GONE
@@ -316,9 +405,13 @@ class MainActivity : BaseActivity() {
 
     private fun initBottomMenu() {
         binding.homeBtn.setOnClickListener {
+            Log.d(TAG, "Home button clicked - Refreshing recommended products")
             val userId = tinyDB.getLong("userId", 0L)
             if (userId > 0L) {
-                viewModel.loadRecommended(userId)
+                // Remove observer cũ
+                viewModel.recommended.removeObservers(this)
+                // Load lại
+                initRecommended(userId)
             }
         }
 
@@ -337,15 +430,10 @@ class MainActivity : BaseActivity() {
         binding.orderBtn.setOnClickListener {
             startActivity(Intent(this, MyOrderActivity::class.java))
         }
-
-    }
-
-    override fun onResume() {
-        super.onResume()
-        Log.d(TAG, "MainActivity resumed")
     }
 
     override fun onDestroy() {
+        notificationPolling?.stop()
         super.onDestroy()
         Log.d(TAG, "MainActivity destroyed")
     }

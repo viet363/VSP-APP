@@ -36,7 +36,6 @@ object RetrofitClient {
     }
 
     fun refreshToken() {
-
         Log.d(TAG, "Token refreshed (retrofit will use latest token from TinyDB)")
     }
 
@@ -115,4 +114,7 @@ object RetrofitClient {
     fun chatApi(): ChatApi = retrofit.create(ChatApi::class.java)
     fun wishlistApi(): WishlistApi = retrofit.create(WishlistApi::class.java)
     fun reviewApi(): ReviewApiService = retrofit.create(ReviewApiService::class.java)
+    fun notificationApi(): NotificationApi = retrofit.create(NotificationApi::class.java)
+
+    fun addressApi(): AddressApi = retrofit.create(AddressApi::class.java)
 }

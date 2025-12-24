@@ -26,3 +26,52 @@ data class OrderItemModel(
     val Quantity: Int = 0,
     val picUrl: String? = null
 )
+
+data class OrderRequest(
+    val addressId: Int,
+    val note: String? = null,
+    val paymentMethod: String,
+    val items: List<OrderItemRequest>
+)
+
+data class OrderItemRequest(
+    val productId: Long,
+    val quantity: Int,
+    val price: Double
+)
+
+data class OrderResponse(
+    val success: Boolean,
+    val orderId: Long,
+    val message: String
+)
+data class OrdersResponse(
+    val success: Boolean,
+    val orders: List<OrderModel> = emptyList(),
+    val message: String? = null
+)
+
+data class VNPayRequest(
+    val orderId: Long
+)
+
+data class VNPayResponse(
+    val success: Boolean,
+    val paymentUrl: String,
+    val orderId: Long,
+    val amount: Double
+)
+data class MoMoRequest(
+    val orderId: Long,
+    val amount: Double,
+    val orderInfo: String = "Thanh toán đơn hàng",
+    val extraData: String = "",
+    val requestType: String = "captureWallet"
+)
+data class MoMoResponse(
+    val success: Boolean,
+    val payUrl: String,
+    val orderId: Long,
+    val amount: Double,
+    val message: String? = null
+)

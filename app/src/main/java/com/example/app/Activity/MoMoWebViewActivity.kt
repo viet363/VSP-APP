@@ -2,6 +2,7 @@ package com.example.app.Activity
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -9,7 +10,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.example.app.databinding.ActivityPaymentWebviewBinding
 
-class PaymentWebViewActivity : AppCompatActivity() {
+class MoMoWebViewActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityPaymentWebviewBinding
     private var orderId: Long = 0
@@ -45,16 +46,14 @@ class PaymentWebViewActivity : AppCompatActivity() {
             settings.domStorageEnabled = true
             settings.loadWithOverviewMode = true
             settings.useWideViewPort = true
-            settings.builtInZoomControls = true
-            settings.displayZoomControls = false
 
             webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
 
                     url?.let {
-                        if (it.contains("payment/return")) {
-                            handleVNPayReturn(it)
+                        if (it.contains("resultCode") || it.contains("status") || it.contains("payment/momo/return")) {
+                            handleMoMoCallback(it)
                         }
                     }
                 }
@@ -64,8 +63,19 @@ class PaymentWebViewActivity : AppCompatActivity() {
                     url: String?
                 ): Boolean {
                     url?.let {
-                        if (it.contains("payment/return")) {
-                            handleVNPayReturn(it)
+                        // Xử lý deeplink đến app MoMo
+                        if (it.startsWith("momo://") || it.startsWith("https://momo.vn/")) {
+                            try {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(it))
+                                startActivity(intent)
+                                return true
+                            } catch (e: Exception) {
+                                // Fallback: tiếp tục trong WebView
+                            }
+                        }
+
+                        if (it.contains("resultCode") || it.contains("status") || it.contains("payment/momo/return")) {
+                            handleMoMoCallback(it)
                             return true
                         }
                     }
@@ -77,54 +87,56 @@ class PaymentWebViewActivity : AppCompatActivity() {
         }
     }
 
-    private fun handleVNPayReturn(url: String) {
+    private fun handleMoMoCallback(url: String) {
         try {
-            // Trích xuất thông tin từ URL
-            val uri = android.net.Uri.parse(url)
-            val responseCode = uri.getQueryParameter("vnp_ResponseCode") ?: "99"
+            val uri = Uri.parse(url)
+
+            // Ưu tiên các param từ backend return URL
+            val resultCode = uri.getQueryParameter("resultCode")
+                ?: uri.getQueryParameter("status")
+                ?: "99"
+
+            val message = uri.getQueryParameter("message") ?: ""
             val extractedOrderId = uri.getQueryParameter("orderId")?.toLongOrNull() ?: orderId
 
-            val isSuccess = responseCode == "00"
+            val isSuccess = resultCode == "0" || resultCode == "9000" || resultCode == "1000"
 
             val resultIntent = Intent().apply {
                 putExtra("PAYMENT_SUCCESS", isSuccess)
                 putExtra("ORDER_ID", extractedOrderId)
 
                 if (!isSuccess) {
-                    putExtra("ERROR_CODE", responseCode)
-                    putExtra("ERROR_MESSAGE", getErrorMessage(responseCode))
+                    putExtra("ERROR_CODE", resultCode)
+                    putExtra("ERROR_MESSAGE", getMoMoErrorMessage(resultCode, message))
                 }
             }
 
             setResult(RESULT_OK, resultIntent)
             finish()
-
         } catch (e: Exception) {
             e.printStackTrace()
             val resultIntent = Intent().apply {
                 putExtra("PAYMENT_SUCCESS", false)
-                putExtra("ERROR_MESSAGE", "Lỗi xử lý thanh toán VNPay")
+                putExtra("ERROR_MESSAGE", "Lỗi xử lý thanh toán MoMo")
             }
             setResult(RESULT_OK, resultIntent)
             finish()
         }
     }
 
-    private fun getErrorMessage(errorCode: String): String {
+    private fun getMoMoErrorMessage(errorCode: String, message: String): String {
         return when (errorCode) {
-            "00" -> "Thanh toán thành công"
-            "07" -> "Trừ tiền thành công. Giao dịch bị nghi ngờ"
-            "09" -> "Thẻ/Tài khoản chưa đăng ký dịch vụ InternetBanking"
-            "10" -> "Xác thực thông tin thẻ/tài khoản không đúng quá 3 lần"
-            "11" -> "Đã hết hạn chờ thanh toán"
-            "12" -> "Thẻ/Tài khoản bị khóa"
-            "13" -> "Sai mật khẩu xác thực giao dịch (OTP)"
+            "0", "9000", "1000" -> "Thanh toán thành công"
+            "11" -> "Đã hết hạn thanh toán"
+            "12" -> "Thẻ/tài khoản bị khóa"
+            "13" -> "Sai mật khẩu/OTP"
             "24" -> "Khách hàng hủy giao dịch"
             "51" -> "Tài khoản không đủ số dư"
-            "65" -> "Tài khoản đã vượt quá hạn mức giao dịch"
-            "75" -> "Ngân hàng thanh toán đang bảo trì"
-            "79" -> "Sai mật khẩu thanh toán quá số lần quy định"
-            else -> "Thanh toán thất bại, vui lòng thử lại (Mã lỗi: $errorCode)"
+            "65" -> "Vượt quá hạn mức giao dịch"
+            "75" -> "Ngân hàng bảo trì"
+            "79" -> "Sai mật khẩu quá nhiều lần"
+            "99" -> "Lỗi không xác định"
+            else -> message.ifEmpty { "Thanh toán thất bại, vui lòng thử lại (Mã: $errorCode)" }
         }
     }
 

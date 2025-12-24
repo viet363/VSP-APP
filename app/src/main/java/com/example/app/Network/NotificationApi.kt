@@ -1,12 +1,13 @@
 package com.example.app.Network
 
-import com.example.app.Model.NotificationModel
-import retrofit2.Call
+import com.example.app.Model.NotificationResponse
 import retrofit2.http.GET
-import retrofit2.http.Path
+import retrofit2.http.Query
 
 interface NotificationApi {
 
-    @GET("notifications/{userId}")
-    fun getNotifications(@Path("userId") userId: Long): Call<List<NotificationModel>>
+    @GET("mobile/notification")
+    suspend fun getNotifications(
+        @Query("userId") userId: Long
+    ): NotificationResponse
 }

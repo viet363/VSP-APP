@@ -9,6 +9,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.app.Adapter.OrderAdapter
 import com.example.app.Helper.TinyDB
 import com.example.app.Model.OrderModel
+import com.example.app.Model.OrdersResponse
 import com.example.app.Network.RetrofitClient
 import com.example.app.databinding.ActivityMyOrderBinding
 import retrofit2.Call
@@ -19,7 +20,7 @@ class MyOrderActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMyOrderBinding
     private lateinit var tinyDB: TinyDB
     private val orders = mutableListOf<OrderModel>()
-    private lateinit var orderAdapter: OrderAdapter // Khai báo adapter riêng
+    private lateinit var orderAdapter: OrderAdapter
     private val TAG = "MyOrderActivity"
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -31,13 +32,9 @@ class MyOrderActivity : AppCompatActivity() {
 
         binding.backBtn.setOnClickListener {
             try {
-                val intent = Intent(this, MainActivity::class.java)
-                intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                startActivity(intent)
                 finish()
             } catch (e: Exception) {
-                Log.e(TAG, "Error starting MainActivity: ${e.message}")
-                Toast.makeText(this, "Lỗi mở MainActivity: ${e.message}", Toast.LENGTH_LONG).show()
+                Log.e(TAG, "Error: ${e.message}")
             }
         }
 
@@ -54,7 +51,6 @@ class MyOrderActivity : AppCompatActivity() {
             return
         }
 
-        // Hiển thị thông tin user từ TinyDB
         val fullname = tinyDB.getString("fullname") ?: "Chưa cập nhật"
         val email = tinyDB.getString("email") ?: "Chưa cập nhật"
         val phone = tinyDB.getString("phone") ?: "Chưa cập nhật"
@@ -64,31 +60,39 @@ class MyOrderActivity : AppCompatActivity() {
         binding.phoneTxt.text = "Số điện thoại: $phone"
 
         if (phone == "Chưa cập nhật") {
-            Toast.makeText(this, "Vui lòng cập nhật số điện thoại trong phần thông tin cá nhân", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Vui lòng cập nhật số điện thoại", Toast.LENGTH_SHORT).show()
         }
     }
 
     private fun loadOrders() {
         showLoading()
 
-        // API trả về List<OrderModel> trực tiếp, không phải OrderResponse
-        RetrofitClient.ordersApi().getOrders().enqueue(object : Callback<List<OrderModel>> {
+        RetrofitClient.ordersApi().getOrders().enqueue(object : Callback<OrdersResponse> {
             override fun onResponse(
-                call: Call<List<OrderModel>>,
-                response: Response<List<OrderModel>>
+                call: Call<OrdersResponse>,
+                response: Response<OrdersResponse>
             ) {
                 hideLoading()
                 if (response.isSuccessful) {
-                    val orderList = response.body() ?: emptyList()
+                    val ordersResponse = response.body()
+                    if (ordersResponse?.success == true) {
+                        val orderList = ordersResponse.orders ?: emptyList()
 
-                    orders.clear()
-                    orders.addAll(orderList)
-                    orderAdapter.updateData(orders) // Dùng phương thức update
+                        orders.clear()
+                        orders.addAll(orderList)
+                        orderAdapter.updateData(orders)
 
-                    Log.d(TAG, "Orders loaded: ${orders.size}")
+                        Log.d(TAG, "Orders loaded: ${orders.size}")
 
-                    if (orders.isEmpty()) {
-                        Toast.makeText(this@MyOrderActivity, "Bạn chưa có đơn hàng nào", Toast.LENGTH_SHORT).show()
+                        if (orders.isEmpty()) {
+                            Toast.makeText(this@MyOrderActivity, "Bạn chưa có đơn hàng nào", Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        Toast.makeText(
+                            this@MyOrderActivity,
+                            ordersResponse?.message ?: "Không thể tải đơn hàng",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
                 } else {
                     val errorMessage = when (response.code()) {
@@ -99,23 +103,20 @@ class MyOrderActivity : AppCompatActivity() {
                     }
                     Toast.makeText(this@MyOrderActivity, errorMessage, Toast.LENGTH_SHORT).show()
 
-                    // Log error body để debug
                     try {
                         val errorBody = response.errorBody()?.string()
                         Log.e(TAG, "Error response body: $errorBody")
                     } catch (e: Exception) {
                         Log.e(TAG, "Error reading error body: ${e.message}")
                     }
-
-                    Log.e(TAG, "Failed to load orders: ${response.code()} - ${response.message()}")
                 }
             }
 
-            override fun onFailure(call: Call<List<OrderModel>>, t: Throwable) {
+            override fun onFailure(call: Call<OrdersResponse>, t: Throwable) {
                 hideLoading()
                 Toast.makeText(this@MyOrderActivity, "Lỗi kết nối: ${t.message}", Toast.LENGTH_SHORT).show()
                 Log.e(TAG, "Failed to load orders: ${t.message}")
-                t.printStackTrace() // In full stack trace để debug
+                t.printStackTrace()
             }
         })
     }

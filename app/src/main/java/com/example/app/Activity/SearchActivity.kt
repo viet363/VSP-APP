@@ -28,11 +28,9 @@ class SearchActivity : AppCompatActivity() {
 
         Log.d(TAG, "=== SEARCH ACTIVITY STARTED ===")
 
-        // Lấy query từ intent
         val searchQuery = intent.getStringExtra("searchQuery") ?: ""
         Log.d(TAG, "Intent query: '$searchQuery'")
 
-        // Khởi tạo ViewModel
         viewModel = ViewModelProvider(this).get(MainViewModel::class.java)
         Log.d(TAG, "ViewModel created")
 
@@ -42,7 +40,6 @@ class SearchActivity : AppCompatActivity() {
         setupSearchView(searchQuery)
         observeViewModel()
 
-        // Nếu có query từ intent, thực hiện search ngay
         if (searchQuery.isNotEmpty()) {
             Log.d(TAG, "Searching immediately for: '$searchQuery'")
             binding.searchView.setQuery(searchQuery, false)
@@ -129,7 +126,6 @@ class SearchActivity : AppCompatActivity() {
         viewModel.searchResults.observe(this) { results ->
             Log.d(TAG, "Search results: ${results.size} items")
 
-            // Debug: hiển thị thông tin chi tiết
             if (results.isNotEmpty()) {
                 results.take(3).forEachIndexed { index, item ->
                     Log.d(TAG, "Item $index: ${item.title}, price: ${item.price}")

@@ -26,9 +26,9 @@ class MyChatActivity : AppCompatActivity() {
     private var lastMessageId: Long = 0
     private val pollingHandler = Handler(Looper.getMainLooper())
     private var pollingRunnable: Runnable? = null
-    private val POLLING_INTERVAL = 3000L // 3 giây
+    private val POLLING_INTERVAL = 10000L
     private var currentUserId: Long = 0
-    private var adminId: Int = 1 // Mặc định admin id = 1
+    private var adminId: Int = 1
 
     companion object {
         private const val TAG = "MyChatActivity"

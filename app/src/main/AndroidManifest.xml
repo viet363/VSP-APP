@@ -7,6 +7,7 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <uses-feature
         android:name="android.hardware.camera"
@@ -33,7 +34,16 @@
             android:name=".Activity.FilterActivity"
             android:exported="false"
             android:theme="@style/Theme.App.NoActionBar" />
-
+        <activity
+            android:name=".Activity.PaymentWebViewActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+        <activity
+            android:name=".Activity.MoMoWebViewActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
         <activity
             android:name=".Activity.WishlistActivity"
             android:exported="false"
@@ -58,7 +68,13 @@
         <meta-data
             android:name="com.google.android.gms.auth.api.signin"
             android:value="@integer/google_play_services_version" />
-
+        <activity
+            android:name=".Activity.AddEditAddressActivity"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+            android:exported="false" />
+        <activity
+            android:name=".Activity.AddressListActivity"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar" />
         <activity
             android:name=".Activity.CartActivity"
             android:launchMode="singleTop"
@@ -71,7 +87,18 @@
                     android:scheme="app"
                     android:host="return" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="app" />
+                <data android:host="momo.return" />
+            </intent-filter>
         </activity>
+        <activity
+            android:name=".Activity.CheckoutActivity"
+            android:launchMode="singleTop"
+            android:exported="false" />
 
         <activity android:name=".Activity.MyOrderActivity" />
 
